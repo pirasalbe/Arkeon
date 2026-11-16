@@ -2,7 +2,7 @@
 
 An open-source, zero-dependency HTML5/SVG web reconstruction of **Arkeon**, the 2011 abstract strategy board game created by **Dominique Breton** (originally prototyped as *Viral*) and published on Android by **Hyperfiction**.
 
-[**Play the Live Demo Here**](https://<YOUR-GITHUB-USERNAME>.github.io/arkeon/) *(Replace with your GitHub Pages URL)*
+[**Play the Live Demo Here**]([https://<YOUR-GITHUB-USERNAME>.github.io/arkeon/](https://pirasalbe.github.io/Arkeon/))
 
 ---
 
