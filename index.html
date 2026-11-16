@@ -1,931 +1,145 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ARKEON — Tactical Hexagonal Abstract Strategy</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Arkeon — Tactical Hexagonal Laser & Supply Strategy</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body class="cyber-grid flex flex-col min-h-screen">
-<!-- TOP NAVIGATION BAR -->
-  <header class="w-full border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-500 to-rose-500 p-0.5 shadow-lg shadow-sky-500/20">
-          <div class="w-full h-full bg-slate-950 rounded-[7px] flex items-center justify-center">
-            <svg class="w-5 h-5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <polygon points="12 2 21 7 21 17 12 22 3 17 3 7 12 2"></polygon>
-              <line x1="12" y1="12" x2="12" y2="2"></line>
-              <line x1="12" y1="12" x2="21" y2="17"></line>
-              <line x1="12" y1="12" x2="3" y2="17"></line>
-            </svg>
-          </div>
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="font-display text-lg sm:text-xl font-black tracking-wider bg-gradient-to-r from-sky-400 via-slate-100 to-rose-400 bg-clip-text text-transparent">
-              ARKEON
-            </h1>
-            <span class="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-semibold">
-              29-Hex Arena
-            </span>
-          </div>
-          <p class="text-[11px] text-slate-400 hidden sm:block">
-            Tactical Supply-Line &amp; Directional Combat • Based on Dominique Breton &amp; Hyperfiction (2011)
-          </p>
-        </div>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-hex">⬢</span>
+      <div>
+        <h1>ARKEON</h1>
+        <p class="subtitle">Tactical Hex Supply &amp; Laser Strategy</p>
       </div>
+    </div>
 
-      <!-- Mode & Utility Controls -->
-      <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
-        <!-- Mode Toggle -->
-        <div class="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800">
-          <button id="modeAiBtn" onclick="setGameMode('ai')" class="px-2.5 py-1 text-xs font-medium rounded-md transition bg-sky-500/20 text-sky-300 border border-sky-500/40">
-            1P vs AI
-          </button>
-          <button id="modePvpBtn" onclick="setGameMode('pvp')" class="px-2.5 py-1 text-xs font-medium rounded-md transition text-slate-400 hover:text-slate-200">
-            2P Pass &amp; Play
-          </button>
-        </div>
-
-        <button id="undoBtn" onclick="undoMove()" disabled="" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 disabled:opacity-40 disabled:pointer-events-none transition flex items-center gap-1" title="Undo Move (Z)">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
-          <span class="hidden md:inline">Undo</span>
-        </button>
-
-        <button onclick="resetGame()" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 transition flex items-center gap-1" title="Restart Match">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-          <span class="hidden md:inline">New Game</span>
-        </button>
-
-        <button onclick="toggleSound()" id="soundBtn" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 transition" title="Toggle Synth Audio">
-          🔊
-        </button>
-
-        <button onclick="openModal('rulesModal')" class="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 transition flex items-center gap-1">
-          <span>📖</span>
-          <span>Rules</span>
-        </button>
-
-        <button onclick="openModal('exportModal')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1.5 shadow-sm">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-          <span>GitHub Pages Files</span>
-        </button>
+    <div class="top-controls">
+      <div class="mode-toggle" role="group" aria-label="Game Mode">
+        <button id="modeAiBtn" class="btn-chip active" type="button">1P vs AI</button>
+        <button id="modePvpBtn" class="btn-chip" type="button">2P Pass &amp; Play</button>
       </div>
+      <button id="howToPlayBtn" class="btn-secondary" type="button">? How to Play</button>
+      <button id="resetGameBtn" class="btn-primary" type="button">New Match</button>
     </div>
   </header>
 
-  <!-- MAIN WORKSPACE -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-4 py-3 grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-
-    <!-- LEFT COLUMN: RED FACTION + ORIENTATION DIAL -->
-    <section class="lg:col-span-3 flex flex-col gap-3 order-2 lg:order-1">
-      <!-- RED RESERVE CARD -->
-      <div id="redPanel" class="rounded-2xl bg-slate-900/85 border border-rose-500/30 p-3.5 shadow-xl backdrop-blur-md transition-all">
-        <div class="flex items-center justify-between mb-2">
-          <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_10px_#f43f5e]"></span>
-            <h2 class="font-display text-sm font-bold text-rose-400 tracking-wide" id="redTitle">RED FACTION (AI)</h2>
-          </div>
-          <span id="redTurnBadge" class="hidden text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse">
-            Active Turn
-          </span>
+  <main class="workspace">
+    <!-- Left / Top Turn & Rules Sidebar -->
+    <aside class="panel info-panel">
+      <div id="turnBanner" class="turn-banner blue-turn">
+        <div class="turn-indicator">
+          <span class="pulse-dot"></span>
+          <span id="turnTitle">BLUE COMMANDER'S TURN</span>
         </div>
-
-        <div class="text-[11px] text-slate-400 flex items-center justify-between mb-2.5 pb-2 border-b border-slate-800">
-          <span>Active Units on Board: <strong id="redBoardCount" class="text-slate-200">3</strong></span>
-          <span>Spent Pool: <strong id="redSpentCount" class="text-rose-400">0 / 5</strong></span>
-        </div>
-
-        <!-- Red Unit Palette -->
-        <div id="redPalette" class="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-2 gap-1.5">
-            <button onclick="selectUnitType('red', 'basic')" class="p-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700  opacity-75 pointer-events-none transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="3.2" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        <circle cx="0" cy="0" r="12" fill="#4c0519" stroke="#f43f5e" stroke-width="2.2"></circle><circle cx="0" cy="0" r="4.5" fill="#fecdd3"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Basic</div>
-                <div class="text-[10px] text-slate-400">
-                  ∞ Supply
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">1</span>
-            </button>
-          
-            <button onclick="selectUnitType('red', 'double_narrow')" class="p-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700  opacity-75 pointer-events-none transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        
-          <g transform="rotate(150)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        <polygon points="14.5,0.0 7.3,12.6 -7.2,12.6 -14.5,0.0 -7.3,-12.6 7.3,-12.6" fill="#4c0519" stroke="#f43f5e" stroke-width="2.4"></polygon><circle cx="0" cy="0" r="6.5" fill="#f43f5e" stroke="#fecdd3" stroke-width="1.2"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Spear V</div>
-                <div class="text-[10px] text-slate-400">
-                  Ready
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">2</span>
-            </button>
-          
-            <button onclick="selectUnitType('red', 'double_wide')" class="p-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700  opacity-75 pointer-events-none transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(30)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        
-          <g transform="rotate(150)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        <polygon points="14.5,0.0 7.3,12.6 -7.2,12.6 -14.5,0.0 -7.3,-12.6 7.3,-12.6" fill="#4c0519" stroke="#f43f5e" stroke-width="2.4"></polygon><circle cx="0" cy="0" r="6.5" fill="#f43f5e" stroke="#fecdd3" stroke-width="1.2"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Fork</div>
-                <div class="text-[10px] text-slate-400">
-                  Ready
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">3</span>
-            </button>
-          
-            <button onclick="selectUnitType('red', 'line')" class="p-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700  opacity-75 pointer-events-none transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        
-          <g transform="rotate(-90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        <polygon points="14.5,0.0 7.3,12.6 -7.2,12.6 -14.5,0.0 -7.3,-12.6 7.3,-12.6" fill="#4c0519" stroke="#f43f5e" stroke-width="2.4"></polygon><circle cx="0" cy="0" r="6.5" fill="#f43f5e" stroke="#fecdd3" stroke-width="1.2"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Lancer</div>
-                <div class="text-[10px] text-slate-400">
-                  Ready
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">4</span>
-            </button>
-          
-            <button onclick="selectUnitType('red', 'triple')" class="p-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700  opacity-75 pointer-events-none transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(30)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        
-          <g transform="rotate(90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        
-          <g transform="rotate(150)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        <polygon points="14.5,0.0 7.3,12.6 -7.2,12.6 -14.5,0.0 -7.3,-12.6 7.3,-12.6" fill="#4c0519" stroke="#f43f5e" stroke-width="2.4"></polygon><circle cx="0" cy="0" r="6.5" fill="#f43f5e" stroke="#fecdd3" stroke-width="1.2"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Trident</div>
-                <div class="text-[10px] text-slate-400">
-                  Ready
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">5</span>
-            </button>
-          
-            <button onclick="selectUnitType('red', 'bastion')" class="p-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700  opacity-75 pointer-events-none transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        
-          <g transform="rotate(-150)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        
-          <g transform="rotate(-30)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        <polygon points="14.5,0.0 7.3,12.6 -7.2,12.6 -14.5,0.0 -7.3,-12.6 7.3,-12.6" fill="#4c0519" stroke="#f43f5e" stroke-width="2.4"></polygon><circle cx="0" cy="0" r="6.5" fill="#f43f5e" stroke="#fecdd3" stroke-width="1.2"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Aegis</div>
-                <div class="text-[10px] text-slate-400">
-                  Ready
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">6</span>
-            </button>
-          </div>
-
-        <!-- Spent Graveyard Indicator -->
-        <div class="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-          <span>5-Unit Cycle Refresh:</span>
-          <div id="redGraveyardDots" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-slate-800 border border-slate-700"></span><span class="w-2.5 h-2.5 rounded-full bg-slate-800 border border-slate-700"></span><span class="w-2.5 h-2.5 rounded-full bg-slate-800 border border-slate-700"></span><span class="w-2.5 h-2.5 rounded-full bg-slate-800 border border-slate-700"></span><span class="w-2.5 h-2.5 rounded-full bg-slate-800 border border-slate-700"></span></div>
-        </div>
-      </div>
-
-      <!-- ORIENTATION & TELEMETRY CARD -->
-      <div class="rounded-2xl bg-slate-900/85 border border-slate-800 p-3.5 shadow-xl backdrop-blur-md">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="font-display text-xs font-bold uppercase tracking-wider text-slate-300">
-            Unit Orientation Dial
-          </h3>
-          <span class="text-[11px] text-slate-400 font-mono-code" id="angleLabel">Dir: 0 (N)</span>
-        </div>
-
-        <div class="flex items-center justify-around gap-2 my-1">
-          <button onclick="rotateSelection(-1)" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95" title="Rotate Counter-Clockwise (Q)">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-          </button>
-
-          <!-- Interactive SVG Mini Preview of Selected Piece & Orientation -->
-          <div class="w-24 h-24 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center relative shadow-inner">
-            <svg id="dialPreviewSvg" viewBox="-45 -45 90 90" class="w-20 h-20 overflow-visible">
-        <polygon points="32.0,0.0 16.0,27.7 -16.0,27.7 -32.0,0.0 -16.0,-27.7 16.0,-27.7" fill="#0f172a" stroke="#334155" stroke-width="1.8"></polygon>
-        <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(-90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="3.2" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        <circle cx="0" cy="0" r="12" fill="#082f49" stroke="#38bdf8" stroke-width="2.2"></circle><circle cx="0" cy="0" r="4.5" fill="#bae6fd"></circle></g>
-      </svg>
-          </div>
-
-          <button onclick="rotateSelection(1)" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition active:scale-95" title="Rotate Clockwise (R or E)">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-          </button>
-        </div>
-
-        <p id="selectedPieceDesc" class="text-center text-xs text-slate-300 font-medium mt-2">Single directional laser. Infinite reserve supply.</p>
-        <p class="text-center text-[11px] text-slate-400 mt-1">
-          Press <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 text-[10px]">R</kbd> or <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 text-[10px]">Scroll</kbd> on board to rotate
+        <p id="turnStepHint" class="step-hint">
+          Step 1: Pick a unit below, then tap any highlighted green hex on the board.
         </p>
       </div>
-    </section>
 
-    <!-- CENTER COLUMN: 29-SPACE HEXAGONAL ARENA -->
-    <section class="lg:col-span-6 flex flex-col items-center order-1 lg:order-2">
-      <!-- Turn & Tactical Banner -->
-      <div id="statusBanner" class="w-full rounded-2xl bg-slate-900/90 border border-slate-800 px-4 py-2.5 mb-2.5 flex flex-wrap items-center justify-between gap-2 shadow-lg">
-        <div class="flex items-center gap-2.5">
-          <div id="turnOrb" class="w-3.5 h-3.5 rounded-full bg-sky-400 shadow-[0_0_12px_#38bdf8]"></div>
-          <div>
-            <div id="turnHeader" class="font-display text-xs sm:text-sm font-bold tracking-wider text-sky-300">BLUE FACTION'S TURN</div>
-            <div id="tacticalHint" class="text-[11px] text-slate-400">Select a unit from your reserve, orient its lasers (R), and click a valid hex to deploy or swap.</div>
+      <div class="scoreboard">
+        <div class="faction-stat blue-stat">
+          <div class="faction-header">
+            <span class="faction-dot blue"></span>
+            <strong>Blue Faction (You)</strong>
           </div>
+          <div class="stat-row">
+            <span>Board Units: <strong id="blueBoardCount">3</strong></span>
+            <span>Adv Reserve: <strong id="blueAdvCount">5/5</strong></span>
+          </div>
+          <div id="blueGraveyard" class="graveyard-row">Spent Adv: None</div>
         </div>
-        <div class="flex items-center gap-2">
-          <span id="moveCounter" class="text-xs font-mono-code px-2.5 py-1 rounded-lg bg-slate-950 text-slate-400 border border-slate-800">Turn 1</span>
+
+        <div class="faction-stat red-stat">
+          <div class="faction-header">
+            <span class="faction-dot red"></span>
+            <strong id="redFactionLabel">Red Faction (AI)</strong>
+          </div>
+          <div class="stat-row">
+            <span>Board Units: <strong id="redBoardCount">3</strong></span>
+            <span>Adv Reserve: <strong id="redAdvCount">5/5</strong></span>
+          </div>
+          <div id="redGraveyard" class="graveyard-row">Spent Adv: None</div>
         </div>
       </div>
 
-      <!-- Interactive SVG Board Container -->
-      <div class="relative w-full aspect-[1/1.05] max-h-[70vh] rounded-3xl bg-slate-950/90 border border-slate-800/90 shadow-2xl flex items-center justify-center overflow-hidden p-2">
-        <!-- Ambient Faction Glows -->
-        <div class="pointer-events-none absolute -top-16 left-1/2 -translate-x-1/2 w-72 h-32 bg-rose-500/10 blur-3xl rounded-full"></div>
-        <div class="pointer-events-none absolute -bottom-16 left-1/2 -translate-x-1/2 w-72 h-32 bg-sky-500/10 blur-3xl rounded-full"></div>
+      <div class="log-box">
+        <h3>Tactical Status</h3>
+        <p id="combatLog">Match initialized. Blue moves first—tap a highlighted green hex to preview placement.</p>
+      </div>
+    </aside>
 
-        <svg id="arkeonBoard" viewBox="-260 -285 520 570" class="w-full h-full max-w-[540px] max-h-[560px] select-none overflow-visible">
-          <defs>
-            <filter id="glowBlue" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="3.5" result="blur"></feGaussianBlur>
-              <feComposite in="SourceGraphic" in2="blur" operator="over"></feComposite>
-            </filter>
-            <filter id="glowRed" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="3.5" result="blur"></feGaussianBlur>
-              <feComposite in="SourceGraphic" in2="blur" operator="over"></feComposite>
-            </filter>
-            <radialGradient id="blueBaseGrad" cx="50%" cy="50%" r="55%">
-              <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.45"></stop>
-              <stop offset="100%" stop-color="#0f172a" stop-opacity="0.95"></stop>
-            </radialGradient>
-            <radialGradient id="redBaseGrad" cx="50%" cy="50%" r="55%">
-              <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.45"></stop>
-              <stop offset="100%" stop-color="#0f172a" stop-opacity="0.95"></stop>
-            </radialGradient>
-          </defs>
+    <!-- Center Responsive Hex Board -->
+    <section class="board-section">
+      <div class="board-wrapper">
+        <svg id="hexBoard" viewBox="-260 -310 520 620" preserveAspectRatio="xMidYMid meet" aria-label="Arkeon Hexagonal Game Board"></svg>
+      </div>
 
-          <!-- Layer 1: Supply Line Connections -->
-          <g id="supplyLinesLayer"><line x1="-46.5" y1="-134.23393758658798" x2="0" y2="-161.0807251039056" stroke="rgba(244, 63, 94, 0.22)" stroke-width="5" stroke-linecap="round"></line><line x1="-46.5" y1="-134.23393758658798" x2="0" y2="-107.38715006927039" stroke="rgba(244, 63, 94, 0.22)" stroke-width="5" stroke-linecap="round"></line><line x1="-46.5" y1="134.23393758658798" x2="0" y2="107.38715006927039" stroke="rgba(56, 189, 248, 0.22)" stroke-width="5" stroke-linecap="round"></line><line x1="-46.5" y1="134.23393758658798" x2="0" y2="161.0807251039056" stroke="rgba(56, 189, 248, 0.22)" stroke-width="5" stroke-linecap="round"></line><line x1="0" y1="-161.0807251039056" x2="46.5" y2="-134.23393758658798" stroke="rgba(244, 63, 94, 0.22)" stroke-width="5" stroke-linecap="round"></line><line x1="0" y1="-107.38715006927039" x2="0" y2="-161.0807251039056" stroke="rgba(244, 63, 94, 0.22)" stroke-width="5" stroke-linecap="round"></line><line x1="0" y1="-107.38715006927039" x2="46.5" y2="-134.23393758658798" stroke="rgba(244, 63, 94, 0.22)" stroke-width="5" stroke-linecap="round"></line><line x1="0" y1="107.38715006927039" x2="46.5" y2="134.23393758658798" stroke="rgba(56, 189, 248, 0.22)" stroke-width="5" stroke-linecap="round"></line><line x1="0" y1="107.38715006927039" x2="0" y2="161.0807251039056" stroke="rgba(56, 189, 248, 0.22)" stroke-width="5" stroke-linecap="round"></line><line x1="0" y1="161.0807251039056" x2="46.5" y2="134.23393758658798" stroke="rgba(56, 189, 248, 0.22)" stroke-width="5" stroke-linecap="round"></line></g>
-
-          <!-- Layer 2: Hex Grid Cells -->
-          <g id="hexCellsLayer">
-          <g onmouseenter="onHexEnter('-3,1')" onmouseleave="onHexLeave('-3,1')" onclick="onHexClick('-3,1')">
-            <polygon class="hex-polygon" points="-109.9,-26.8 -124.7,-1.2 -154.3,-1.2 -169.1,-26.8 -154.3,-52.5 -124.7,-52.5" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="-139.5" y="-5.846787517317598" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -3,-1
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('-2,-1')" onmouseleave="onHexLeave('-2,-1')" onclick="onHexClick('-2,-1')">
-            <polygon class="hex-polygon" points="-63.4,-107.4 -78.2,-81.8 -107.8,-81.8 -122.6,-107.4 -107.8,-133.0 -78.2,-133.0" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="-93" y="-86.38715006927039" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -2,-2
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('-2,0')" onmouseleave="onHexLeave('-2,0')" onclick="onHexClick('-2,0')">
-            <polygon class="hex-polygon" points="-63.4,-53.7 -78.2,-28.1 -107.8,-28.1 -122.6,-53.7 -107.8,-79.3 -78.2,-79.3" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="-93" y="-32.693575034635195" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -2,-1
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('-2,1')" onmouseleave="onHexLeave('-2,1')" onclick="onHexClick('-2,1')">
-            <polygon class="hex-polygon" points="-63.4,0.0 -78.2,25.6 -107.8,25.6 -122.6,0.0 -107.8,-25.6 -78.2,-25.6" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="-93" y="21" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -2,0
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('-2,2')" onmouseleave="onHexLeave('-2,2')" onclick="onHexClick('-2,2')">
-            <polygon class="hex-polygon" points="-63.4,53.7 -78.2,79.3 -107.8,79.3 -122.6,53.7 -107.8,28.1 -78.2,28.1" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="-93" y="74.69357503463519" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -2,1
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('-2,3')" onmouseleave="onHexLeave('-2,3')" onclick="onHexClick('-2,3')">
-            <polygon class="hex-polygon" points="-63.4,107.4 -78.2,133.0 -107.8,133.0 -122.6,107.4 -107.8,81.8 -78.2,81.8" fill="#0f172a" stroke="rgba(16, 185, 129, 0.45)" stroke-width="1.6"></polygon>
-            <text x="-93" y="128.38715006927038" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -2,2
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('-1,-2')" onmouseleave="onHexLeave('-1,-2')" onclick="onHexClick('-1,-2')">
-            <polygon class="hex-polygon" points="-16.9,-134.2 -31.7,-108.6 -61.3,-108.6 -76.1,-134.2 -61.3,-159.9 -31.7,-159.9" fill="#16162c" stroke="rgba(244, 63, 94, 0.4)" stroke-width="1.6"></polygon>
-            <text x="-46.5" y="-113.23393758658798" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -1,-3
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('-1,-1')" onmouseleave="onHexLeave('-1,-1')" onclick="onHexClick('-1,-1')">
-            <polygon class="hex-polygon" points="-16.9,-80.5 -31.7,-54.9 -61.3,-54.9 -76.1,-80.5 -61.3,-106.2 -31.7,-106.2" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="-46.5" y="-59.540362551952796" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -1,-2
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('-1,0')" onmouseleave="onHexLeave('-1,0')" onclick="onHexClick('-1,0')">
-            <polygon class="hex-polygon" points="-16.9,-26.8 -31.7,-1.2 -61.3,-1.2 -76.1,-26.8 -61.3,-52.5 -31.7,-52.5" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="-46.5" y="-5.846787517317598" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -1,-1
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('-1,1')" onmouseleave="onHexLeave('-1,1')" onclick="onHexClick('-1,1')">
-            <polygon class="hex-polygon" points="-16.9,26.8 -31.7,52.5 -61.3,52.5 -76.1,26.8 -61.3,1.2 -31.7,1.2" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="-46.5" y="47.846787517317594" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -1,0
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('-1,2')" onmouseleave="onHexLeave('-1,2')" onclick="onHexClick('-1,2')">
-            <polygon class="hex-polygon" points="-16.9,80.5 -31.7,106.2 -61.3,106.2 -76.1,80.5 -61.3,54.9 -31.7,54.9" fill="#0f172a" stroke="rgba(16, 185, 129, 0.45)" stroke-width="1.6"></polygon>
-            <text x="-46.5" y="101.5403625519528" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -1,1
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('-1,3')" onmouseleave="onHexLeave('-1,3')" onclick="onHexClick('-1,3')">
-            <polygon class="hex-polygon" points="-16.9,134.2 -31.7,159.9 -61.3,159.9 -76.1,134.2 -61.3,108.6 -31.7,108.6" fill="#0f2138" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.6"></polygon>
-            <text x="-46.5" y="155.23393758658798" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              -1,2
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('0,-3')" onmouseleave="onHexLeave('0,-3')" onclick="onHexClick('0,-3')">
-            <polygon class="hex-polygon" points="29.6,-161.1 14.8,-135.4 -14.8,-135.4 -29.6,-161.1 -14.8,-186.7 14.8,-186.7" fill="url(#redBaseGrad)" stroke="#f43f5e" stroke-width="2.8"></polygon>
-            <text x="0" y="-140.0807251039056" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              0,-3
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('0,-2')" onmouseleave="onHexLeave('0,-2')" onclick="onHexClick('0,-2')">
-            <polygon class="hex-polygon" points="29.6,-107.4 14.8,-81.8 -14.8,-81.8 -29.6,-107.4 -14.8,-133.0 14.8,-133.0" fill="#16162c" stroke="rgba(244, 63, 94, 0.4)" stroke-width="1.6"></polygon>
-            <text x="0" y="-86.38715006927039" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              0,-2
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('0,-1')" onmouseleave="onHexLeave('0,-1')" onclick="onHexClick('0,-1')">
-            <polygon class="hex-polygon" points="29.6,-53.7 14.8,-28.1 -14.8,-28.1 -29.6,-53.7 -14.8,-79.3 14.8,-79.3" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="0" y="-32.693575034635195" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              0,-1
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('0,0')" onmouseleave="onHexLeave('0,0')" onclick="onHexClick('0,0')">
-            <polygon class="hex-polygon" points="29.6,0.0 14.8,25.6 -14.8,25.6 -29.6,0.0 -14.8,-25.6 14.8,-25.6" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="0" y="21" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              0,0
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('0,1')" onmouseleave="onHexLeave('0,1')" onclick="onHexClick('0,1')">
-            <polygon class="hex-polygon" points="29.6,53.7 14.8,79.3 -14.8,79.3 -29.6,53.7 -14.8,28.1 14.8,28.1" fill="#0f172a" stroke="rgba(16, 185, 129, 0.45)" stroke-width="1.6"></polygon>
-            <text x="0" y="74.69357503463519" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              0,1
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('0,2')" onmouseleave="onHexLeave('0,2')" onclick="onHexClick('0,2')">
-            <polygon class="hex-polygon" points="29.6,107.4 14.8,133.0 -14.8,133.0 -29.6,107.4 -14.8,81.8 14.8,81.8" fill="#0f2138" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.6"></polygon>
-            <text x="0" y="128.38715006927038" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              0,2
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('0,3')" onmouseleave="onHexLeave('0,3')" onclick="onHexClick('0,3')">
-            <polygon class="hex-polygon" points="29.6,161.1 14.8,186.7 -14.8,186.7 -29.6,161.1 -14.8,135.4 14.8,135.4" fill="url(#blueBaseGrad)" stroke="#38bdf8" stroke-width="2.8"></polygon>
-            <text x="0" y="182.0807251039056" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              0,3
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('1,-3')" onmouseleave="onHexLeave('1,-3')" onclick="onHexClick('1,-3')">
-            <polygon class="hex-polygon" points="76.1,-134.2 61.3,-108.6 31.7,-108.6 16.9,-134.2 31.7,-159.9 61.3,-159.9" fill="#16162c" stroke="rgba(244, 63, 94, 0.4)" stroke-width="1.6"></polygon>
-            <text x="46.5" y="-113.23393758658798" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              1,-2
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('1,-2')" onmouseleave="onHexLeave('1,-2')" onclick="onHexClick('1,-2')">
-            <polygon class="hex-polygon" points="76.1,-80.5 61.3,-54.9 31.7,-54.9 16.9,-80.5 31.7,-106.2 61.3,-106.2" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="46.5" y="-59.540362551952796" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              1,-1
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('1,-1')" onmouseleave="onHexLeave('1,-1')" onclick="onHexClick('1,-1')">
-            <polygon class="hex-polygon" points="76.1,-26.8 61.3,-1.2 31.7,-1.2 16.9,-26.8 31.7,-52.5 61.3,-52.5" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="46.5" y="-5.846787517317598" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              1,0
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('1,0')" onmouseleave="onHexLeave('1,0')" onclick="onHexClick('1,0')">
-            <polygon class="hex-polygon" points="76.1,26.8 61.3,52.5 31.7,52.5 16.9,26.8 31.7,1.2 61.3,1.2" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="46.5" y="47.846787517317594" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              1,1
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('1,1')" onmouseleave="onHexLeave('1,1')" onclick="onHexClick('1,1')">
-            <polygon class="hex-polygon" points="76.1,80.5 61.3,106.2 31.7,106.2 16.9,80.5 31.7,54.9 61.3,54.9" fill="#0f172a" stroke="rgba(16, 185, 129, 0.45)" stroke-width="1.6"></polygon>
-            <text x="46.5" y="101.5403625519528" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              1,2
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('1,2')" onmouseleave="onHexLeave('1,2')" onclick="onHexClick('1,2')">
-            <polygon class="hex-polygon" points="76.1,134.2 61.3,159.9 31.7,159.9 16.9,134.2 31.7,108.6 61.3,108.6" fill="#0f2138" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.6"></polygon>
-            <text x="46.5" y="155.23393758658798" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              1,3
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('2,-3')" onmouseleave="onHexLeave('2,-3')" onclick="onHexClick('2,-3')">
-            <polygon class="hex-polygon" points="122.6,-107.4 107.8,-81.8 78.2,-81.8 63.4,-107.4 78.2,-133.0 107.8,-133.0" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="93" y="-86.38715006927039" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              2,-2
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('2,-2')" onmouseleave="onHexLeave('2,-2')" onclick="onHexClick('2,-2')">
-            <polygon class="hex-polygon" points="122.6,-53.7 107.8,-28.1 78.2,-28.1 63.4,-53.7 78.2,-79.3 107.8,-79.3" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="93" y="-32.693575034635195" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              2,-1
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('2,-1')" onmouseleave="onHexLeave('2,-1')" onclick="onHexClick('2,-1')">
-            <polygon class="hex-polygon" points="122.6,0.0 107.8,25.6 78.2,25.6 63.4,0.0 78.2,-25.6 107.8,-25.6" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="93" y="21" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              2,0
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('2,0')" onmouseleave="onHexLeave('2,0')" onclick="onHexClick('2,0')">
-            <polygon class="hex-polygon" points="122.6,53.7 107.8,79.3 78.2,79.3 63.4,53.7 78.2,28.1 107.8,28.1" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="93" y="74.69357503463519" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              2,1
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('2,1')" onmouseleave="onHexLeave('2,1')" onclick="onHexClick('2,1')">
-            <polygon class="hex-polygon" points="122.6,107.4 107.8,133.0 78.2,133.0 63.4,107.4 78.2,81.8 107.8,81.8" fill="#0f172a" stroke="rgba(16, 185, 129, 0.45)" stroke-width="1.6"></polygon>
-            <text x="93" y="128.38715006927038" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              2,2
-            </text>
-          </g>
-        
-          <g onmouseenter="onHexEnter('3,-1')" onmouseleave="onHexLeave('3,-1')" onclick="onHexClick('3,-1')">
-            <polygon class="hex-polygon" points="169.1,26.8 154.3,52.5 124.7,52.5 109.9,26.8 124.7,1.2 154.3,1.2" fill="#0f172a" stroke="#263859" stroke-width="1.6"></polygon>
-            <text x="139.5" y="47.846787517317594" text-anchor="middle" fill="rgba(148, 163, 184, 0.28)" font-size="7.5" font-family="JetBrains Mono" pointer-events="none">
-              3,1
-            </text>
-          </g>
-        </g>
-
-          <!-- Layer 3: Placed Units & Bases -->
-          <g id="unitsLayer"><g class="unit-group " opacity="1" transform="translate(-46.5, -134.23393758658798)">
-          <g transform="rotate(90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="3.2" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        <circle cx="0" cy="0" r="12" fill="#4c0519" stroke="#f43f5e" stroke-width="2.2"></circle><circle cx="0" cy="0" r="4.5" fill="#fecdd3"></circle></g><g class="unit-group " opacity="1" transform="translate(-46.5, 134.23393758658798)">
-          <g transform="rotate(-90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="3.2" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        <circle cx="0" cy="0" r="12" fill="#082f49" stroke="#38bdf8" stroke-width="2.2"></circle><circle cx="0" cy="0" r="4.5" fill="#bae6fd"></circle></g>
-            <g transform="translate(0, -161.0807251039056)" pointer-events="none">
-              <polygon points="18.0,0.0 9.0,15.6 -9.0,15.6 -18.0,0.0 -9.0,-15.6 9.0,-15.6" fill="#4c0519" stroke="#fb7185" stroke-width="2.2"></polygon>
-              <circle cx="0" cy="0" r="7" fill="#f43f5e"></circle>
-              <text x="0" y="-23" text-anchor="middle" fill="#fda4af" font-size="8.5" font-family="Orbitron" font-weight="700">RED BASE</text>
-            </g>
-          <g class="unit-group " opacity="1" transform="translate(0, -107.38715006927039)">
-          <g transform="rotate(90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="3.2" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        <circle cx="0" cy="0" r="12" fill="#4c0519" stroke="#f43f5e" stroke-width="2.2"></circle><circle cx="0" cy="0" r="4.5" fill="#fecdd3"></circle></g><g class="unit-group " opacity="1" transform="translate(0, 107.38715006927039)">
-          <g transform="rotate(-90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="3.2" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        <circle cx="0" cy="0" r="12" fill="#082f49" stroke="#38bdf8" stroke-width="2.2"></circle><circle cx="0" cy="0" r="4.5" fill="#bae6fd"></circle></g>
-            <g transform="translate(0, 161.0807251039056)" pointer-events="none">
-              <polygon points="18.0,0.0 9.0,15.6 -9.0,15.6 -18.0,0.0 -9.0,-15.6 9.0,-15.6" fill="#082f49" stroke="#7dd3fc" stroke-width="2.2"></polygon>
-              <circle cx="0" cy="0" r="7" fill="#38bdf8"></circle>
-              <text x="0" y="29" text-anchor="middle" fill="#7dd3fc" font-size="8.5" font-family="Orbitron" font-weight="700">BLUE BASE</text>
-            </g>
-          <g class="unit-group " opacity="1" transform="translate(46.5, -134.23393758658798)">
-          <g transform="rotate(90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#f43f5e" stroke-width="3.2" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#fecdd3"></polygon>
-          </g>
-        <circle cx="0" cy="0" r="12" fill="#4c0519" stroke="#f43f5e" stroke-width="2.2"></circle><circle cx="0" cy="0" r="4.5" fill="#fecdd3"></circle></g><g class="unit-group " opacity="1" transform="translate(46.5, 134.23393758658798)">
-          <g transform="rotate(-90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="3.2" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        <circle cx="0" cy="0" r="12" fill="#082f49" stroke="#38bdf8" stroke-width="2.2"></circle><circle cx="0" cy="0" r="4.5" fill="#bae6fd"></circle></g></g>
-
-          <!-- Layer 4: Hover Preview, Attack Lasers & Cut Warnings -->
-          <g id="previewLayer"></g>
-
-          <!-- Layer 5: Combat Effects / Floating Markers -->
-          <g id="fxLayer"></g>
-        </svg>
-
-        <!-- On-Board Floating Quick Legend -->
-        <div class="absolute bottom-2.5 left-3 right-3 flex flex-wrap items-center justify-between text-[10px] text-slate-400 pointer-events-none gap-2">
-          <div class="flex items-center gap-3 bg-slate-900/80 px-2.5 py-1 rounded-full border border-slate-800">
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Valid Deploy</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Upgrade/Downgrade</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Laser/Cut Target</span>
-          </div>
-          <div id="hoverCoordBadge" class="bg-slate-900/80 px-2.5 py-1 rounded-full border border-slate-800 font-mono-code">
-            Hex: --
-          </div>
+      <!-- Floating Touch/Click Action Bar for Rotating & Confirming Placement -->
+      <div id="actionToolbar" class="action-toolbar">
+        <div class="toolbar-status">
+          <span id="selectedUnitBadge" class="unit-badge">Unit: Basic Striker</span>
+          <span id="targetHexBadge" class="hex-badge">Tap a green hex on the board</span>
         </div>
-
-        <!-- Victory Overlay Banner -->
-        <div id="victoryOverlay" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-20">
-          <div id="victoryBadge" class="w-16 h-16 rounded-2xl flex items-center justify-center mb-3 shadow-2xl border">
-            🏆
-          </div>
-          <h2 id="victoryTitle" class="font-display text-2xl sm:text-3xl font-black tracking-wider mb-1">
-            BLUE FACTION WINS!
-          </h2>
-          <p id="victoryReason" class="text-sm text-slate-300 max-w-md mb-5">
-            Direct laser strike delivered to the enemy home base.
-          </p>
-          <div class="flex items-center gap-3">
-            <button onclick="resetGame()" class="px-5 py-2.5 rounded-xl font-display text-xs font-bold uppercase tracking-wider bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-lg shadow-sky-500/30 transition">
-              Play Again
-            </button>
-            <button onclick="undoMove()" class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
-              Step Back (Undo)
-            </button>
-          </div>
+        <div class="toolbar-buttons">
+          <button id="rotateLeftBtn" class="btn-tool" type="button" title="Rotate Counter-Clockwise (Q)">⟲ Rotate</button>
+          <button id="rotateRightBtn" class="btn-tool" type="button" title="Rotate Clockwise (E)">Rotate ⟳</button>
+          <button id="confirmMoveBtn" class="btn-confirm" type="button" disabled>Confirm Move ✓</button>
+          <button id="cancelHexBtn" class="btn-cancel" type="button" disabled>Cancel ✕</button>
         </div>
       </div>
     </section>
 
-    <!-- RIGHT COLUMN: BLUE FACTION + COMBAT LOG -->
-    <section class="lg:col-span-3 flex flex-col gap-3 order-3">
-      <!-- BLUE RESERVE CARD -->
-      <div id="bluePanel" class="rounded-2xl bg-slate-900/85 border border-sky-500/40 p-3.5 shadow-xl backdrop-blur-md transition-all">
-        <div class="flex items-center justify-between mb-2">
-          <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full bg-sky-400 shadow-[0_0_10px_#38bdf8]"></span>
-            <h2 class="font-display text-sm font-bold text-sky-400 tracking-wide">BLUE FACTION (YOU)</h2>
-          </div>
-          <span id="blueTurnBadge" class="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 animate-pulse">
-            Active Turn
-          </span>
-        </div>
-
-        <div class="text-[11px] text-slate-400 flex items-center justify-between mb-2.5 pb-2 border-b border-slate-800">
-          <span>Active Units on Board: <strong id="blueBoardCount" class="text-slate-200">3</strong></span>
-          <span>Spent Pool: <strong id="blueSpentCount" class="text-sky-400">0 / 5</strong></span>
-        </div>
-
-        <!-- Blue Unit Palette -->
-        <div id="bluePalette" class="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-2 gap-1.5">
-            <button onclick="selectUnitType('blue', 'basic')" class="p-2 rounded-xl border border-sky-400 bg-sky-500/20 shadow-md shadow-sky-500/15 cursor-pointer transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(-90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="3.2" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        <circle cx="0" cy="0" r="12" fill="#082f49" stroke="#38bdf8" stroke-width="2.2"></circle><circle cx="0" cy="0" r="4.5" fill="#bae6fd"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Basic</div>
-                <div class="text-[10px] text-slate-400">
-                  ∞ Supply
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">1</span>
-            </button>
-          
-            <button onclick="selectUnitType('blue', 'double_narrow')" class="p-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700 cursor-pointer transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(-90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        
-          <g transform="rotate(-30)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        <polygon points="14.5,0.0 7.3,12.6 -7.2,12.6 -14.5,0.0 -7.3,-12.6 7.3,-12.6" fill="#082f49" stroke="#38bdf8" stroke-width="2.4"></polygon><circle cx="0" cy="0" r="6.5" fill="#38bdf8" stroke="#bae6fd" stroke-width="1.2"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Spear V</div>
-                <div class="text-[10px] text-slate-400">
-                  Ready
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">2</span>
-            </button>
-          
-            <button onclick="selectUnitType('blue', 'double_wide')" class="p-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700 cursor-pointer transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(-150)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        
-          <g transform="rotate(-30)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        <polygon points="14.5,0.0 7.3,12.6 -7.2,12.6 -14.5,0.0 -7.3,-12.6 7.3,-12.6" fill="#082f49" stroke="#38bdf8" stroke-width="2.4"></polygon><circle cx="0" cy="0" r="6.5" fill="#38bdf8" stroke="#bae6fd" stroke-width="1.2"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Fork</div>
-                <div class="text-[10px] text-slate-400">
-                  Ready
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">3</span>
-            </button>
-          
-            <button onclick="selectUnitType('blue', 'line')" class="p-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700 cursor-pointer transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(-90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        
-          <g transform="rotate(90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        <polygon points="14.5,0.0 7.3,12.6 -7.2,12.6 -14.5,0.0 -7.3,-12.6 7.3,-12.6" fill="#082f49" stroke="#38bdf8" stroke-width="2.4"></polygon><circle cx="0" cy="0" r="6.5" fill="#38bdf8" stroke="#bae6fd" stroke-width="1.2"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Lancer</div>
-                <div class="text-[10px] text-slate-400">
-                  Ready
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">4</span>
-            </button>
-          
-            <button onclick="selectUnitType('blue', 'triple')" class="p-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700 cursor-pointer transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(-150)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        
-          <g transform="rotate(-90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        
-          <g transform="rotate(-30)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        <polygon points="14.5,0.0 7.3,12.6 -7.2,12.6 -14.5,0.0 -7.3,-12.6 7.3,-12.6" fill="#082f49" stroke="#38bdf8" stroke-width="2.4"></polygon><circle cx="0" cy="0" r="6.5" fill="#38bdf8" stroke="#bae6fd" stroke-width="1.2"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Trident</div>
-                <div class="text-[10px] text-slate-400">
-                  Ready
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">5</span>
-            </button>
-          
-            <button onclick="selectUnitType('blue', 'bastion')" class="p-2 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700 cursor-pointer transition flex items-center gap-2 text-left relative">
-              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
-                <svg viewBox="-32 -32 64 64" class="w-8 h-8 overflow-visible">
-                  <g class="unit-group " opacity="1" transform="translate(0, 0)">
-          <g transform="rotate(-90)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        
-          <g transform="rotate(30)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        
-          <g transform="rotate(150)">
-            <line x1="0" y1="0" x2="23" y2="0" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"></line>
-            <polygon points="26,0 16,-5.5 18.5,0 16,5.5" fill="#bae6fd"></polygon>
-          </g>
-        <polygon points="14.5,0.0 7.3,12.6 -7.2,12.6 -14.5,0.0 -7.3,-12.6 7.3,-12.6" fill="#082f49" stroke="#38bdf8" stroke-width="2.4"></polygon><circle cx="0" cy="0" r="6.5" fill="#38bdf8" stroke="#bae6fd" stroke-width="1.2"></circle></g>
-                </svg>
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-slate-200 truncate">Aegis</div>
-                <div class="text-[10px] text-slate-400">
-                  Ready
-                </div>
-              </div>
-              <span class="absolute top-1 right-1.5 text-[9px] font-mono-code text-slate-500">6</span>
-            </button>
-          </div>
-
-        <!-- Spent Graveyard Indicator -->
-        <div class="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-          <span>5-Unit Cycle Refresh:</span>
-          <div id="blueGraveyardDots" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-slate-800 border border-slate-700"></span><span class="w-2.5 h-2.5 rounded-full bg-slate-800 border border-slate-700"></span><span class="w-2.5 h-2.5 rounded-full bg-slate-800 border border-slate-700"></span><span class="w-2.5 h-2.5 rounded-full bg-slate-800 border border-slate-700"></span><span class="w-2.5 h-2.5 rounded-full bg-slate-800 border border-slate-700"></span></div>
-        </div>
+    <!-- Bottom / Right Unit Arsenal Dock -->
+    <aside class="panel dock-panel">
+      <div class="dock-header">
+        <h2>Unit Arsenal</h2>
+        <span class="dock-sub">1. Tap a card &rarr; 2. Tap a green board hex</span>
       </div>
-
-      <!-- TACTICAL ACTION LOG & QUICK MECHANICS -->
-      <div class="rounded-2xl bg-slate-900/85 border border-slate-800 p-3.5 shadow-xl backdrop-blur-md flex flex-col h-60">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="font-display text-xs font-bold uppercase tracking-wider text-slate-300">
-            Battle Telemetry Log
-          </h3>
-          <span class="text-[10px] text-slate-400">Supply BFS Active</span>
-        </div>
-        <div id="battleLog" class="flex-1 overflow-y-auto space-y-1.5 pr-1 text-xs font-mono-code"><div class="px-2.5 py-1.5 rounded-lg border text-[11px] leading-snug text-sky-300 border-sky-500/30 bg-sky-500/10">Blue starts with 3 Basic Strikers connected to Blue Base.</div><div class="px-2.5 py-1.5 rounded-lg border text-[11px] leading-snug text-emerald-300 border-emerald-500/30 bg-emerald-500/10">Match initialized. 29 playable hexes + 2 Home Bases online.</div></div>
-      </div>
-    </section>
+      <div id="unitDock" class="unit-dock"></div>
+    </aside>
   </main>
 
-  <!-- MODAL 1: COMPLETE ARKEON RULEBOOK -->
-  <div id="rulesModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-        <div class="flex items-center gap-2.5">
-          <span class="text-xl">📖</span>
-          <h2 class="font-display text-lg font-bold text-white">ARKEON — Official Tactical Dynamics</h2>
-        </div>
-        <button onclick="closeModal('rulesModal')" class="text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800/60">✕</button>
+  <!-- How to Play Modal -->
+  <div id="rulesModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="rulesTitle">How to Play Arkeon</h2>
+        <button id="closeRulesBtn" class="btn-close" type="button" aria-label="Close">✕</button>
       </div>
-      <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-300 leading-relaxed">
-        <div class="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/30 text-sky-200 text-xs">
-          <strong>Origins:</strong> Designed by Dominique Breton (originally prototyped as <em>Viral</em>) and published by Hyperfiction (2011), Arkeon blends the directional geometry of Chess with the supply-line territory isolation of Go.
-        </div>
-
-        <div>
-          <h3 class="font-display text-xs font-bold uppercase text-amber-400 mb-1">1. The 29-Hex Arena &amp; Starting Setup</h3>
-          <p class="text-xs text-slate-300">
-            The board consists of <strong>29 playable hexes</strong> situated between the <strong>Red Base</strong> at the top <code class="text-rose-300">(0, -3)</code> and the <strong>Blue Base</strong> at the bottom <code class="text-sky-300">(0, 3)</code>. Each player starts with 3 Basic units deployed on the 3 hexes directly in front of their home base.
-          </p>
-        </div>
-
-        <div>
-          <h3 class="font-display text-xs font-bold uppercase text-amber-400 mb-1">2. Turn Actions: Deploy or Upgrade/Downgrade</h3>
-          <p class="text-xs text-slate-300 mb-2">
-            Players alternate turns performing <strong>one action</strong>:
-          </p>
-          <ul class="list-disc pl-5 space-y-1 text-xs text-slate-300">
-            <li><strong>Deploy:</strong> Place a Basic or available Advanced unit from your reserve onto an empty hex connected to your supply line.</li>
-            <li><strong>Upgrade / Downgrade (Swap):</strong> Replace one of your existing units on the board with a different type from your reserve. Upgrading a Basic unit to an Advanced unit lets you unleash multi-directional attacks from surprise angles. <strong>Downgrading</strong> an Advanced unit on the board back into a Basic unit immediately returns that Advanced unit to your available hand so you can redeploy it elsewhere!</li>
-          </ul>
-        </div>
-
-        <div>
-          <h3 class="font-display text-xs font-bold uppercase text-amber-400 mb-1">3. Indiscriminate Lasers &amp; Supply-Line Isolation (BFS)</h3>
-          <ul class="list-disc pl-5 space-y-1 text-xs text-slate-300">
-            <li><strong>Immediate Attack &amp; Friendly Fire:</strong> When placed or swapped, a unit immediately fires into the adjacent hex(es) indicated by its directional pointers. Any unit—<strong>enemy or friendly</strong>—in those spaces is destroyed.</li>
-            <li><strong>Base Supply Chain:</strong> Every unit on the board must maintain an unbroken chain of adjacent friendly units back to its Home Base. After attacks resolve, any units cut off from their Home Base are <strong>instantly isolated and destroyed</strong>!</li>
-            <li><strong>Self-Preservation Rule:</strong> You cannot make a placement that destroys your own Base, nor one where your newly placed/swapped unit cuts off its own sole connection to its Base.</li>
-          </ul>
-        </div>
-
-        <div>
-          <h3 class="font-display text-xs font-bold uppercase text-amber-400 mb-1">4. Reserve Recycling Pool (The 5 Advanced Units)</h3>
-          <p class="text-xs text-slate-300">
-            Basic units have an unlimited supply (destroyed Basic units return directly to your hand). Each player also commands <strong>5 unique Advanced units</strong> (Spear V, Wide Fork, Lancer, Trident, and Aegis). When an Advanced unit is destroyed (by combat or isolation), it moves to your <strong>Spent Pool</strong>. Once <strong>all 5</strong> of your Advanced units have been destroyed, all 5 immediately refresh back into your available reserve!
-          </p>
-        </div>
-
-        <div>
-          <h3 class="font-display text-xs font-bold uppercase text-emerald-400 mb-1">5. Victory Condition &amp; Base Adjacency Rule</h3>
-          <p class="text-xs text-slate-300">
-            You win immediately by firing a laser directly into the opponent's Home Base, or by eliminating all enemy units on the board. Note: You may only place a unit on the 3 hexes directly adjacent to the Enemy Base if that unit is oriented to fire into the Enemy Base for the winning strike.
-          </p>
-        </div>
-      </div>
-      <div class="px-6 py-3.5 border-t border-slate-800 bg-slate-950/60 flex justify-end">
-        <button onclick="closeModal('rulesModal')" class="px-5 py-2 rounded-xl text-xs font-bold bg-sky-500 hover:bg-sky-400 text-slate-950 transition">
-          Got It, Back to Battle
-        </button>
+      <div class="modal-body">
+        <ol class="rules-list">
+          <li>
+            <strong>How to Place or Swap a Piece (3 Easy Steps):</strong>
+            <ul>
+              <li><strong>Step 1:</strong> Select a unit card from your <em>Unit Arsenal</em> (Basic Striker is selected automatically).</li>
+              <li><strong>Step 2:</strong> Tap any <strong>green highlighted hex</strong> on the board. Empty green hexes deploy a new unit; green hexes containing your own unit upgrade/downgrade (swap) that piece.</li>
+              <li><strong>Step 3:</strong> Use the <strong>Rotate ⟲ / ⟳</strong> buttons to aim your yellow laser beams, then tap <strong>Confirm Move ✓</strong> (or tap the same hex a second time).</li>
+            </ul>
+          </li>
+          <li>
+            <strong>Directional Lasers &amp; Friendly Fire:</strong>
+            When confirmed, your unit fires lasers into the adjacent hex(es) it points at—destroying <strong>any</strong> unit in those spaces, including your own friendly units!
+          </li>
+          <li>
+            <strong>Supply-Line Rule (Base Connection):</strong>
+            Every unit must keep a continuous chain of adjacent friendly units back to its Home Base. Any unit cut off from its base (marked with a red <code>CUT!</code> badge during preview) is immediately destroyed.
+          </li>
+          <li>
+            <strong>5-Unit Advanced Pool &amp; Recycling:</strong>
+            Basic Strikers are infinite. You have <strong>5 Advanced Units</strong>. If you <em>downgrade</em> an Advanced unit on the board back into a Basic Striker, the Advanced unit returns straight to your hand. Destroyed Advanced units go to your Spent pool; once all 5 are destroyed, all 5 refresh automatically!
+          </li>
+          <li>
+            <strong>Winning the Match:</strong>
+            Aim any unit's laser directly at the enemy Home Base, or eliminate all enemy units.
+          </li>
+        </ol>
       </div>
     </div>
   </div>
 
-  <!-- MODAL 2: GITHUB PAGES 3-FILE SOURCE EXPORTER -->
-  
-
-  <!-- GAME ENGINE & LOGIC -->
-  
-
-<div id="definer-bubble-host" data-definer-bubble-ready="true" style="position: fixed; top: 0px; overflow: visible; z-index: 500000; width: 0px !important; height: 0px !important; min-height: 0px; margin: 0px; padding: 0px;"></div>
   <script src="index.js"></script>
 </body>
 </html>
