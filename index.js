@@ -1,76 +1,41 @@
-// Arkeon — Complete Hexagonal Strategy Engine (Touch, Tablet & Desktop Adaptive)
+// Arkeon — Symmetric 31-Hex Board (29 Playable + 2 Centered Home Bases)
+// Uses Flat-Top Hex Cube Coordinates (x + y + z = 0) so x = 0 is the true vertical centerline!
 
-const HEX_SIZE = 34;
+const HEX_SIZE = 31;
 const SQRT3 = Math.sqrt(3);
 
-// 6 Axial Hex Directions (Pointy-Top, 0 = North-East, clockwise)
+// 6 Cube Directions (0 = North, clockwise around the hex)
 const DIRECTIONS = [
-  { dq: 1, dr: -1 }, // 0: NE
-  { dq: 1, dr: 0 },  // 1: E
-  { dq: 0, dr: 1 },  // 2: SE
-  { dq: -1, dr: 1 }, // 3: SW
-  { dq: -1, dr: 0 }, // 4: W
-  { dq: 0, dr: -1 }  // 5: NW
+  { dx: 0, dy: 1, dz: -1, angleDeg: -90 },  // 0: North (Straight Up)
+  { dx: 1, dy: 0, dz: -1, angleDeg: -30 },  // 1: North-East
+  { dx: 1, dy: -1, dz: 0, angleDeg: 30 },   // 2: South-East
+  { dx: 0, dy: -1, dz: 1, angleDeg: 90 },   // 3: South (Straight Down)
+  { dx: -1, dy: 0, dz: 1, angleDeg: 150 },  // 4: South-West
+  { dx: -1, dy: 1, dz: 0, angleDeg: -150 }  // 5: North-West
 ];
 
-// Unit Definitions: Basic (infinite) + 5 Advanced Units
 const UNIT_TYPES = {
-  basic: {
-    id: "basic",
-    name: "Basic Striker",
-    short: "1 Laser",
-    isAdvanced: false,
-    lasers: [0]
-  },
-  spear: {
-    id: "spear",
-    name: "Spear V",
-    short: "Narrow 2-Beam",
-    isAdvanced: true,
-    lasers: [0, 1]
-  },
-  fork: {
-    id: "fork",
-    name: "Wide Fork",
-    short: "Split 2-Beam",
-    isAdvanced: true,
-    lasers: [5, 1]
-  },
-  lancer: {
-    id: "lancer",
-    name: "Lancer Line",
-    short: "Dual Opposing",
-    isAdvanced: true,
-    lasers: [0, 3]
-  },
-  trident: {
-    id: "trident",
-    name: "Trident Fan",
-    short: "3-Way Front",
-    isAdvanced: true,
-    lasers: [5, 0, 1]
-  },
-  aegis: {
-    id: "aegis",
-    name: "Tri-Star",
-    short: "3-Way Radial",
-    isAdvanced: true,
-    lasers: [0, 2, 4]
-  }
+  basic: { id: "basic", name: "Basic Striker", short: "1 Laser", isAdvanced: false, lasers: [0] },
+  spear: { id: "spear", name: "Spear V", short: "Narrow 2-Beam", isAdvanced: true, lasers: [0, 1] },
+  fork: { id: "fork", name: "Wide Fork", short: "Split 2-Beam", isAdvanced: true, lasers: [5, 1] },
+  lancer: { id: "lancer", name: "Lancer Line", short: "Dual Opposing", isAdvanced: true, lasers: [0, 3] },
+  trident: { id: "trident", name: "Trident Fan", short: "3-Way Front", isAdvanced: true, lasers: [5, 0, 1] },
+  aegis: { id: "aegis", name: "Tri-Star", short: "3-Way Radial", isAdvanced: true, lasers: [0, 2, 4] }
 };
 
 const ADVANCED_IDS = ["spear", "fork", "lancer", "trident", "aegis"];
+const RED_BASE_KEY = "0,3,-3";
+const BLUE_BASE_KEY = "0,-3,3";
 
-// Build the 31-Hex Arena (29 Playable Hexes + 2 Home Bases at (0,-3) and (0,3))
+// Build the exact 31-hex symmetrical board:
+// Radius-3 hex grid (37 hexes) minus the 6 outer side corners at |x| = 3 (37 - 6 = 31 hexes: 2 Bases + 29 Arena hexes)
 function generateBoardCoords() {
   const coords = [];
-  for (let r = -3; r <= 3; r++) {
-    for (let q = -3; q <= 3; q++) {
-      const s = -q - r;
-      if (Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= 3) {
-        // Trim the 6 outer left/right corners on rows r = -3 and r = 3 so bases sit at (0,-3) and (0,3)
-        if (Math.abs(r) === 3 && q !== 0) continue;
-        coords.push({ q, r });
+  for (let x = -2; x <= 2; x++) {
+    for (let y = -3; y <= 3; y++) {
+      const z = -x - y;
+      if (Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) <= 3) {
+        coords.push({ x, y, z });
       }
     }
   }
@@ -79,28 +44,28 @@ function generateBoardCoords() {
 
 const BOARD_COORDS = generateBoardCoords();
 
-function keyOf(q, r) {
-  return `${q},${r}`;
+function keyOf(x, y, z) {
+  return `${x},${y},${z}`;
 }
 
-function axialToPixel(q, r) {
-  const x = HEX_SIZE * SQRT3 * (q + r / 2);
-  const y = HEX_SIZE * 1.5 * r;
-  return { x, y };
+// Flat-top hex pixel projection: x = 0 is a straight vertical column
+function cubeToPixel(x, y, z) {
+  const px = HEX_SIZE * 1.5 * x;
+  const py = HEX_SIZE * (SQRT3 / 2) * (z - y);
+  return { x: px, y: py };
 }
 
 function hexPolygonPoints(cx, cy, radius) {
   const pts = [];
   for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 180) * (60 * i - 30);
+    const angle = (Math.PI / 180) * (60 * i); // Flat-top vertices at 0, 60, 120, 180, 240, 300
     pts.push(`${(cx + radius * Math.cos(angle)).toFixed(1)},${(cy + radius * Math.sin(angle)).toFixed(1)}`);
   }
   return pts.join(" ");
 }
 
-// Game State
 let state = {
-  mode: "ai", // "ai" or "pvp"
+  mode: "ai",
   turn: "blue",
   winner: null,
   cells: new Map(),
@@ -109,8 +74,8 @@ let state = {
     red: { available: [...ADVANCED_IDS], spent: [] }
   },
   selectedUnitType: "basic",
-  selectedRotation: 0, // 0..5
-  stagedHexKey: null,  // Currently tapped/selected board hex for preview & rotation
+  selectedRotation: 0, // 0 = North (facing toward Red HQ)
+  stagedHexKey: null,
   hoverHexKey: null
 };
 
@@ -119,21 +84,21 @@ function initGame() {
   state.winner = null;
   state.cells = new Map();
 
-  for (const { q, r } of BOARD_COORDS) {
-    state.cells.set(keyOf(q, r), { q, r, occupant: null });
+  for (const { x, y, z } of BOARD_COORDS) {
+    state.cells.set(keyOf(x, y, z), { x, y, z, occupant: null });
   }
 
-  // Place Red Base at (0, -3) and Blue Base at (0, 3)
-  state.cells.get("0,-3").occupant = { faction: "red", type: "base", isBase: true, rot: 2 };
-  state.cells.get("0,3").occupant = { faction: "blue", type: "base", isBase: true, rot: 5 };
+  // Red HQ at Top Center (0, 3, -3) and Blue HQ at Bottom Center (0, -3, 3)
+  state.cells.get(RED_BASE_KEY).occupant = { faction: "red", type: "base", isBase: true, rot: 3 };
+  state.cells.get(BLUE_BASE_KEY).occupant = { faction: "blue", type: "base", isBase: true, rot: 0 };
 
-  // Starting 3 Basic Units for Red (facing South-East / South-West toward center)
+  // Red's 3 Starting Units directly touching Red HQ, pointing South (rot = 3)
   [
-    { q: -1, r: -2, rot: 2 },
-    { q: 0, r: -2, rot: 2 },
-    { q: 1, r: -2, rot: 3 }
+    { x: -1, y: 3, z: -2, rot: 3 },
+    { x: 0, y: 2, z: -2, rot: 3 },
+    { x: 1, y: 2, z: -3, rot: 3 }
   ].forEach((u) => {
-    state.cells.get(keyOf(u.q, u.r)).occupant = {
+    state.cells.get(keyOf(u.x, u.y, u.z)).occupant = {
       faction: "red",
       type: "basic",
       isBase: false,
@@ -141,13 +106,13 @@ function initGame() {
     };
   });
 
-  // Starting 3 Basic Units for Blue (facing North-East / North-West toward center)
+  // Blue's 3 Starting Units directly touching Blue HQ, pointing North (rot = 0)
   [
-    { q: -1, r: 2, rot: 0 },
-    { q: 0, r: 2, rot: 5 },
-    { q: 1, r: 2, rot: 5 }
+    { x: -1, y: -2, z: 3, rot: 0 },
+    { x: 0, y: -2, z: 2, rot: 0 },
+    { x: 1, y: -3, z: 2, rot: 0 }
   ].forEach((u) => {
-    state.cells.get(keyOf(u.q, u.r)).occupant = {
+    state.cells.get(keyOf(u.x, u.y, u.z)).occupant = {
       faction: "blue",
       type: "basic",
       isBase: false,
@@ -161,33 +126,31 @@ function initGame() {
   };
 
   state.selectedUnitType = "basic";
-  state.selectedRotation = 5; // Default Blue facing upward
+  state.selectedRotation = 0; // North
   state.stagedHexKey = null;
   state.hoverHexKey = null;
 
-  setLog("Match ready! Step 1: Pick a unit card. Step 2: Tap any green hex on the board to preview & rotate.");
+  setLog("Match ready! Click or tap any green dashed hex on the board to lock your target hex.");
   renderAll();
 }
 
 function cloneCells(cellsMap) {
   const copy = new Map();
   for (const [k, v] of cellsMap.entries()) {
-    copy.set(k, {
-      q: v.q,
-      r: v.r,
-      occupant: v.occupant ? { ...v.occupant } : null
-    });
+    copy.set(k, { x: v.x, y: v.y, z: v.z, occupant: v.occupant ? { ...v.occupant } : null });
   }
   return copy;
 }
 
-function getNeighbors(q, r, cellsMap = state.cells) {
+function getNeighbors(x, y, z, cellsMap = state.cells) {
   const list = [];
   for (let dir = 0; dir < 6; dir++) {
-    const nq = q + DIRECTIONS[dir].dq;
-    const nr = r + DIRECTIONS[dir].dr;
-    const cell = cellsMap.get(keyOf(nq, nr));
-    if (cell) list.push({ dir, key: keyOf(nq, nr), cell });
+    const nx = x + DIRECTIONS[dir].dx;
+    const ny = y + DIRECTIONS[dir].dy;
+    const nz = z + DIRECTIONS[dir].dz;
+    const k = keyOf(nx, ny, nz);
+    const cell = cellsMap.get(k);
+    if (cell) list.push({ dir, key: k, cell });
   }
   return list;
 }
@@ -198,14 +161,11 @@ function getActiveLaserDirs(unitType, rot) {
   return spec.lasers.map((d) => (d + rot) % 6);
 }
 
-// Breadth-First Search (BFS) from each faction's Home Base
 function findConnectedKeys(cellsMap, faction) {
-  const baseKey = faction === "blue" ? "0,3" : "0,-3";
+  const baseKey = faction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
   const baseCell = cellsMap.get(baseKey);
   const visited = new Set();
-  if (!baseCell || !baseCell.occupant || baseCell.occupant.faction !== faction) {
-    return visited;
-  }
+  if (!baseCell || !baseCell.occupant || baseCell.occupant.faction !== faction) return visited;
 
   const queue = [baseKey];
   visited.add(baseKey);
@@ -213,7 +173,7 @@ function findConnectedKeys(cellsMap, faction) {
   while (queue.length > 0) {
     const currKey = queue.shift();
     const curr = cellsMap.get(currKey);
-    for (const { key, cell } of getNeighbors(curr.q, curr.r, cellsMap)) {
+    for (const { key, cell } of getNeighbors(curr.x, curr.y, curr.z, cellsMap)) {
       if (!visited.has(key) && cell.occupant && cell.occupant.faction === faction) {
         visited.add(key);
         queue.push(key);
@@ -223,78 +183,68 @@ function findConnectedKeys(cellsMap, faction) {
   return visited;
 }
 
-// Simulate placing/swapping (faction, unitType, rot) on targetKey
 function simulateMove(faction, unitType, rot, targetKey) {
   const targetCell = state.cells.get(targetKey);
   if (!targetCell) return { valid: false, reason: "Invalid hex." };
 
   const existing = targetCell.occupant;
-  if (existing && existing.isBase) {
-    return { valid: false, reason: "Cannot place on a Home Base." };
-  }
+  if (existing && existing.isBase) return { valid: false, reason: "Cannot place on a Home Base." };
 
-  // Must be either empty (Deploy) or occupied by own non-base unit (Upgrade/Downgrade Swap)
   const isSwap = Boolean(existing && existing.faction === faction);
   if (existing && existing.faction !== faction) {
     return { valid: false, reason: "Hex is occupied by an enemy unit." };
   }
 
-  if (isSwap && existing.type === unitType) {
-    return { valid: false, reason: "Select a different unit type to swap/upgrade/downgrade." };
+  // Allow upgrading, downgrading, OR rotating an existing unit to a new orientation
+  if (isSwap && existing.type === unitType && existing.rot === rot) {
+    return { valid: false, reason: "Use Rotate ⟲ / ⟳ or pick a different unit card to modify this unit." };
   }
 
-  // Check unit availability in reserve
-  if ( unitType !== "basic" && !state.reserves[faction].available.includes(unitType) ) {
+  if (unitType !== "basic" && !state.reserves[faction].available.includes(unitType)) {
     return { valid: false, reason: "That Advanced unit is not currently available." };
   }
 
-  // Check adjacency to at least one friendly piece before placement
-  const hasFriendlyNeighbor = getNeighbors(targetCell.q, targetCell.r).some(
+  const hasFriendlyNeighbor = getNeighbors(targetCell.x, targetCell.y, targetCell.z).some(
     (n) => n.cell.occupant && n.cell.occupant.faction === faction
   );
   if (!hasFriendlyNeighbor) {
-    return { valid: false, reason: "Must be placed adjacent to your connected supply chain." };
+    return { valid: false, reason: "Must be adjacent to your connected supply chain." };
   }
 
-  // Enemy Base Adjacency Restriction:
-  // Cannot place adjacent to Enemy Base UNLESS pointing a laser directly at the Enemy Base
   const enemyFaction = faction === "blue" ? "red" : "blue";
-  const enemyBaseKey = enemyFaction === "blue" ? "0,3" : "0,-3";
+  const enemyBaseKey = enemyFaction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
+  const ownBaseKey = faction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
+
   const laserDirs = getActiveLaserDirs(unitType, rot);
   const laserTargetKeys = laserDirs
-    .map((d) => keyOf(targetCell.q + DIRECTIONS[d].dq, targetCell.r + DIRECTIONS[d].dr))
+    .map((d) =>
+      keyOf(
+        targetCell.x + DIRECTIONS[d].dx,
+        targetCell.y + DIRECTIONS[d].dy,
+        targetCell.z + DIRECTIONS[d].dz
+      )
+    )
     .filter((k) => state.cells.has(k));
 
-  const isAdjacentToEnemyBase = getNeighbors(targetCell.q, targetCell.r).some(
+  const isAdjacentToEnemyBase = getNeighbors(targetCell.x, targetCell.y, targetCell.z).some(
     (n) => n.key === enemyBaseKey
   );
   const hitsEnemyBase = laserTargetKeys.includes(enemyBaseKey);
 
   if (isAdjacentToEnemyBase && !hitsEnemyBase) {
-    return {
-      valid: false,
-      reason: "Units adjacent to the Enemy Base must aim a laser at the Base!"
-    };
+    return { valid: false, reason: "Units next to Enemy HQ must aim a laser directly at Enemy HQ!" };
   }
 
-  // Clone board and execute placement + laser hits
-  const simCells = cloneCells(state.cells);
-  simCells.get(targetKey).occupant = {
-    faction,
-    type: unitType,
-    isBase: false,
-    rot
-  };
-
-  // Never allow firing at your own Home Base
-  const ownBaseKey = faction === "blue" ? "0,3" : "0,-3";
   if (laserTargetKeys.includes(ownBaseKey)) {
     return { valid: false, reason: "Cannot fire a laser at your own Home Base!" };
   }
 
+  const simCells = cloneCells(state.cells);
+  simCells.get(targetKey).occupant = { faction, type: unitType, isBase: false, rot };
+
   const directHits = [];
   for (const hitKey of laserTargetKeys) {
-    if (hitKey === enemyBaseKey) continue; // Base hit wins immediately
+    if (hitKey === enemyBaseKey) continue;
     const occ = simCells.get(hitKey)?.occupant;
     if (occ && !occ.isBase) {
       directHits.push({ key: hitKey, occupant: { ...occ } });
@@ -302,16 +252,11 @@ function simulateMove(faction, unitType, rot, targetKey) {
     }
   }
 
-  // Check if newly placed unit still has a valid supply line to its own base after firing
   const ownConnected = findConnectedKeys(simCells, faction);
   if (!ownConnected.has(targetKey)) {
-    return {
-      valid: false,
-      reason: "Illegal move: unit would be disconnected from your Home Base!"
-    };
+    return { valid: false, reason: "Illegal orientation: unit would sever its own supply line to Base!" };
   }
 
-  // Find isolated units (CUT!) for both factions
   const enemyConnected = findConnectedKeys(simCells, enemyFaction);
   const cutUnits = [];
 
@@ -337,19 +282,14 @@ function simulateMove(faction, unitType, rot, targetKey) {
   };
 }
 
-// Check if a hex is valid for ANY rotation of the currently selected unit
 function getHexAvailability(targetKey) {
-  const currentSim = simulateMove(
-    state.turn,
-    state.selectedUnitType,
-    state.selectedRotation,
-    targetKey
-  );
+  const preferredRot = state.selectedRotation;
+  const currentSim = simulateMove(state.turn, state.selectedUnitType, preferredRot, targetKey);
   if (currentSim.valid) {
-    return { canPlace: true, defaultRot: state.selectedRotation, sim: currentSim };
+    return { canPlace: true, defaultRot: preferredRot, sim: currentSim };
   }
-
-  for (let r = 0; r < 6; r++) {
+  for (let offset = 1; offset < 6; offset++) {
+    const r = (preferredRot + offset) % 6;
     const trySim = simulateMove(state.turn, state.selectedUnitType, r, targetKey);
     if (trySim.valid) {
       return { canPlace: true, defaultRot: r, sim: trySim };
@@ -361,10 +301,7 @@ function getHexAvailability(targetKey) {
 function handleDestroyedUnit(faction, unitType) {
   if (!UNIT_TYPES[unitType]?.isAdvanced) return;
   const pool = state.reserves[faction];
-  if (!pool.spent.includes(unitType)) {
-    pool.spent.push(unitType);
-  }
-  // 5-Unit Graveyard Refresh Rule: once all 5 Advanced units are destroyed, all 5 refresh!
+  if (!pool.spent.includes(unitType)) pool.spent.push(unitType);
   if (pool.spent.length >= 5) {
     pool.available = [...ADVANCED_IDS];
     pool.spent = [];
@@ -382,36 +319,34 @@ function commitMove(targetKey, rot) {
     return;
   }
 
-  // Update reserve pools for Deploy or Upgrade/Downgrade Swap
   const pool = state.reserves[faction];
   if (unitType !== "basic") {
     pool.available = pool.available.filter((id) => id !== unitType);
   }
 
-  // If swapping out an existing Advanced unit on the board (Downgrade/Swap), return it to hand!
-  if (sim.isSwap && sim.previousOccupant && sim.previousOccupant.type !== "basic") {
+  if (
+    sim.isSwap &&
+    sim.previousOccupant &&
+    sim.previousOccupant.type !== "basic" &&
+    sim.previousOccupant.type !== unitType
+  ) {
     if (!pool.available.includes(sim.previousOccupant.type)) {
       pool.available.push(sim.previousOccupant.type);
     }
   }
 
-  // Process destroyed units (direct hits + supply-line cuts)
-  for (const hit of sim.directHits) {
-    handleDestroyedUnit(hit.occupant.faction, hit.occupant.type);
-  }
-  for (const cut of sim.cutUnits) {
-    handleDestroyedUnit(cut.occupant.faction, cut.occupant.type);
-  }
+  for (const hit of sim.directHits) handleDestroyedUnit(hit.occupant.faction, hit.occupant.type);
+  for (const cut of sim.cutUnits) handleDestroyedUnit(cut.occupant.faction, cut.occupant.type);
 
   state.cells = sim.simCells;
   state.stagedHexKey = null;
+  state.hoverHexKey = null;
 
   const enemyFaction = faction === "blue" ? "red" : "blue";
 
-  // Check Victory Conditions
   if (sim.hitsEnemyBase) {
     state.winner = faction;
-    setLog(`${faction.toUpperCase()} WINS! Direct laser strike on the ${enemyFaction.toUpperCase()} Home Base!`);
+    setLog(`${faction.toUpperCase()} WINS! Direct laser strike on ${enemyFaction.toUpperCase()} HQ!`);
     renderAll();
     return;
   }
@@ -422,31 +357,29 @@ function commitMove(targetKey, rot) {
 
   if (remainingEnemyUnits === 0) {
     state.winner = faction;
-    setLog(`${faction.toUpperCase()} WINS! All ${enemyFaction.toUpperCase()} forces were eliminated!`);
+    setLog(`${faction.toUpperCase()} WINS! All ${enemyFaction.toUpperCase()} units were eliminated!`);
     renderAll();
     return;
   }
 
-  // Switch Turn
   state.turn = enemyFaction;
   state.selectedUnitType = "basic";
-  state.selectedRotation = state.turn === "blue" ? 5 : 2;
+  state.selectedRotation = state.turn === "blue" ? 0 : 3;
 
-  const actionLabel = sim.isSwap ? "swapped in" : "deployed";
+  const actionLabel = sim.isSwap ? "updated" : "deployed";
   const casualties = sim.directHits.length + sim.cutUnits.length;
   setLog(
     `${faction.toUpperCase()} ${actionLabel} ${UNIT_TYPES[unitType].name}` +
-      (casualties > 0 ? ` (${casualties} unit${casualties > 1 ? "s" : ""} eliminated).` : ".")
+      (casualties > 0 ? ` (${casualties} unit${casualties > 1 ? "s" : ""} destroyed).` : ".")
   );
 
   renderAll();
 
   if (state.mode === "ai" && state.turn === "red" && !state.winner) {
-    setTimeout(runAiTurn, 550);
+    setTimeout(runAiTurn, 500);
   }
 }
 
-// Heuristic AI for Red Faction
 function runAiTurn() {
   if (state.winner || state.turn !== "red") return;
 
@@ -455,31 +388,29 @@ function runAiTurn() {
   let bestScore = -9999;
 
   for (const uType of candidateTypes) {
-    for (const [k] of state.cells.entries()) {
+    for (const [k, cell] of state.cells.entries()) {
       for (let rot = 0; rot < 6; rot++) {
         const sim = simulateMove("red", uType, rot, k);
         if (!sim.valid) continue;
 
+        // Avoid pointless in-place rotation unless it scores a hit
+        if (sim.isSwap && sim.previousOccupant.type === uType && sim.directHits.length === 0 && !sim.hitsEnemyBase) {
+          continue;
+        }
+
         let score = 0;
         if (sim.hitsEnemyBase) score += 10000;
 
-        for (const h of sim.directHits) {
-          score += h.occupant.faction === "blue" ? 38 : -32;
-        }
-        for (const c of sim.cutUnits) {
-          score += c.occupant.faction === "blue" ? 55 : -50;
-        }
+        for (const h of sim.directHits) score += h.occupant.faction === "blue" ? 40 : -35;
+        for (const c of sim.cutUnits) score += c.occupant.faction === "blue" ? 55 : -50;
 
-        const cell = state.cells.get(k);
-        // Encourage advancing toward Blue Base at (0, 3)
-        score += (cell.r + 3) * 4;
+        // Encourage advancing South toward Blue Base (z increases going South, y decreases)
+        score += (cell.z - cell.y) * 3;
 
-        // Slightly conserve advanced units unless they score hits
         if (uType !== "basic" && sim.directHits.length === 0 && !sim.hitsEnemyBase) {
           score -= 8;
         }
 
-        // Small random tie-breaker
         score += Math.random() * 3;
 
         if (score > bestScore) {
@@ -502,7 +433,6 @@ function runAiTurn() {
   commitMove(bestMove.key, bestMove.rot);
 }
 
-// UI Rendering
 function setLog(msg) {
   const el = document.getElementById("combatLog");
   if (el) el.textContent = msg;
@@ -525,7 +455,7 @@ function renderTurnBanner() {
 
   if (state.winner) {
     title.textContent = `🏆 ${state.winner.toUpperCase()} VICTORY!`;
-    hint.textContent = "Tap 'New Match' in the top bar to play again.";
+    hint.textContent = "Click 'New Match' in the top bar to play again.";
     return;
   }
 
@@ -536,13 +466,9 @@ function renderTurnBanner() {
   }
 
   title.textContent = `${state.turn.toUpperCase()} COMMANDER'S TURN`;
-  if (!state.stagedHexKey) {
-    hint.textContent =
-      "Step 1: Pick a unit card from your Arsenal. Step 2: Tap any green hex on the board.";
-  } else {
-    hint.textContent =
-      "Step 3: Use Rotate ⟲ / ⟳ to aim lasers, then tap 'Confirm Move ✓' (or tap the hex again).";
-  }
+  hint.textContent = !state.stagedHexKey
+    ? "Step 1: Pick a unit card. Step 2: Click/tap any green dashed hex on the board."
+    : "Target locked! Use Rotate ⟲ / ⟳ to aim lasers, then click 'Confirm Move ✓'.";
 }
 
 function renderScoreboard() {
@@ -560,23 +486,22 @@ function renderScoreboard() {
   document.getElementById("blueAdvCount").textContent = `${state.reserves.blue.available.length}/5`;
   document.getElementById("redAdvCount").textContent = `${state.reserves.red.available.length}/5`;
 
-  const blueSpentNames = state.reserves.blue.spent.map((id) => UNIT_TYPES[id].name).join(", ");
-  const redSpentNames = state.reserves.red.spent.map((id) => UNIT_TYPES[id].name).join(", ");
-  document.getElementById("blueGraveyard").textContent = `Spent Adv (${state.reserves.blue.spent.length}/5): ${blueSpentNames || "None"}`;
-  document.getElementById("redGraveyard").textContent = `Spent Adv (${state.reserves.red.spent.length}/5): ${redSpentNames || "None"}`;
+  const blueSpent = state.reserves.blue.spent.map((id) => UNIT_TYPES[id].name).join(", ");
+  const redSpent = state.reserves.red.spent.map((id) => UNIT_TYPES[id].name).join(", ");
+  document.getElementById("blueGraveyard").textContent = `Spent Adv (${state.reserves.blue.spent.length}/5): ${blueSpent || "None"}`;
+  document.getElementById("redGraveyard").textContent = `Spent Adv (${state.reserves.red.spent.length}/5): ${redSpent || "None"}`;
   document.getElementById("redFactionLabel").textContent =
     state.mode === "ai" ? "Red Faction (AI)" : "Red Faction (Player 2)";
 }
 
 function createMiniUnitSvg(unitId, faction) {
-  const spec = UNIT_TYPES[unitId];
   const color = faction === "red" ? "#f43f5e" : "#38bdf8";
-  const rot = faction === "red" ? 2 : 5;
+  const rot = faction === "red" ? 3 : 0; // North for Blue, South for Red
   const dirs = getActiveLaserDirs(unitId, rot);
 
   let rays = "";
   for (const d of dirs) {
-    const angle = (Math.PI / 180) * (60 * d - 30);
+    const angle = (Math.PI / 180) * DIRECTIONS[d].angleDeg;
     const x2 = (27 + 20 * Math.cos(angle)).toFixed(1);
     const y2 = (27 + 20 * Math.sin(angle)).toFixed(1);
     rays += `<line x1="27" y1="27" x2="${x2}" y2="${y2}" stroke="#facc15" stroke-width="3" stroke-linecap="round" />`;
@@ -607,11 +532,7 @@ function renderUnitDock() {
     card.className = `unit-card ${isSelected ? "selected" : ""} ${!isAvailable ? "disabled" : ""}`;
     card.disabled = !isAvailable || Boolean(state.winner);
 
-    const statusLabel = !u.isAdvanced
-      ? "∞ Supply"
-      : isAvailable
-      ? "Ready"
-      : "Spent";
+    const statusLabel = !u.isAdvanced ? "∞ Supply" : isAvailable ? "Ready" : "Spent";
 
     card.innerHTML = `
       ${createMiniUnitSvg(u.id, activeFaction)}
@@ -622,7 +543,6 @@ function renderUnitDock() {
     card.addEventListener("click", () => {
       if (!isAvailable || state.winner) return;
       state.selectedUnitType = u.id;
-      // Re-validate staged hex if one is selected
       if (state.stagedHexKey) {
         const check = getHexAvailability(state.stagedHexKey);
         if (!check.canPlace) {
@@ -648,7 +568,7 @@ function renderToolbar() {
   unitBadge.textContent = `Selected: ${unitName}`;
 
   if (!state.stagedHexKey) {
-    hexBadge.textContent = "Tap any green hex on the board to aim";
+    hexBadge.textContent = "Click/tap any green hex on the board to lock";
     confirmBtn.disabled = true;
     cancelBtn.disabled = true;
     return;
@@ -656,8 +576,8 @@ function renderToolbar() {
 
   const sim = simulateMove(state.turn, state.selectedUnitType, state.selectedRotation, state.stagedHexKey);
   if (sim.valid) {
-    const actionWord = sim.isSwap ? "Swap Unit" : "Deploy Unit";
-    hexBadge.textContent = `${actionWord} at (${state.stagedHexKey}) — Ready!`;
+    const actionWord = sim.isSwap ? "Update Unit" : "Deploy Unit";
+    hexBadge.textContent = `Target Locked — ${actionWord} Ready!`;
     confirmBtn.disabled = false;
   } else {
     hexBadge.textContent = sim.reason;
@@ -681,9 +601,8 @@ function renderBoard() {
   const cutKeySet = new Set(activeSim?.valid ? activeSim.cutUnits.map((c) => c.key) : []);
   const hitKeySet = new Set(activeSim?.valid ? activeSim.directHits.map((h) => h.key) : []);
 
-  // 1. Render Hex Cells & Pieces
   for (const [key, cell] of state.cells.entries()) {
-    const { x, y } = axialToPixel(cell.q, cell.r);
+    const { x, y } = cubeToPixel(cell.x, cell.y, cell.z);
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
     const availability = isHumanTurn ? getHexAvailability(key) : { canPlace: false };
@@ -696,7 +615,7 @@ function renderBoard() {
     if (cell.occupant?.isBase) {
       fill = cell.occupant.faction === "blue" ? "#0c2d48" : "#3b0d1e";
     } else if (availability.canPlace) {
-      fill = "rgba(34, 197, 94, 0.13)";
+      fill = "rgba(34, 197, 94, 0.15)";
     }
 
     poly.setAttribute("fill", fill);
@@ -707,12 +626,12 @@ function renderBoard() {
       `hex-cell ${availability.canPlace ? "hex-valid" : ""} ${isStaged ? "hex-selected" : ""}`
     );
 
-    // Click / Tap Interaction:
-    // 1st Tap on a valid hex -> stages the piece there so user can see lasers & rotate
-    // 2nd Tap on the SAME staged hex -> confirms the move
-    g.addEventListener("click", () => {
+    // Use pointerdown so mouseenter DOM rebuilds never swallow a click or touch!
+    g.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
       if (!isHumanTurn) return;
 
+      // Clicking/tapping the already-locked hex a second time confirms the move immediately
       if (state.stagedHexKey === key) {
         const checkNow = simulateMove(state.turn, state.selectedUnitType, state.selectedRotation, key);
         if (checkNow.valid) {
@@ -724,17 +643,17 @@ function renderBoard() {
       const check = getHexAvailability(key);
       if (check.canPlace) {
         state.stagedHexKey = key;
+        state.hoverHexKey = null;
         state.selectedRotation = check.defaultRot;
-        setLog("Hex selected! Use 'Rotate ⟲ / ⟳' to aim lasers, then tap 'Confirm Move ✓' (or tap hex again).");
+        setLog("Target locked! Use 'Rotate ⟲ / ⟳' to aim lasers, then click 'Confirm Move ✓' (or tap hex again).");
         renderAll();
       } else {
         setLog(check.reason || "Choose a highlighted green hex connected to your supply line.");
       }
     });
 
-    // Desktop hover preview when no hex is locked
     g.addEventListener("mouseenter", () => {
-      if (!isHumanTurn || state.stagedHexKey) return;
+      if (!isHumanTurn || state.stagedHexKey || state.hoverHexKey === key) return;
       const check = getHexAvailability(key);
       if (check.canPlace) {
         state.hoverHexKey = key;
@@ -743,42 +662,36 @@ function renderBoard() {
       }
     });
 
-    g.addEventListener("mouseleave", () => {
-      if (state.hoverHexKey === key) {
-        state.hoverHexKey = null;
-        renderBoard();
-      }
-    });
-
     g.appendChild(poly);
 
-    // Draw existing occupant (or ghost preview if this is the previewed hex)
     const occToDraw =
       isHumanTurn && previewKey === key && activeSim?.valid
-        ? { faction: state.turn, type: state.selectedUnitType, isBase: false, rot: state.selectedRotation, isGhost: true }
+        ? {
+            faction: state.turn,
+            type: state.selectedUnitType,
+            isBase: false,
+            rot: state.selectedRotation,
+            isGhost: true
+          }
         : cell.occupant;
 
-    if (occToDraw) {
-      drawOccupant(g, x, y, occToDraw);
-    }
+    if (occToDraw) drawOccupant(g, x, y, occToDraw);
 
-    // Draw Direct Hit or Supply Cut Badges
     if (hitKeySet.has(key)) {
-      drawBadge(g, x, y - 16, "HIT!", "#ef4444");
+      drawBadge(g, x, y - 15, "HIT!", "#ef4444");
     } else if (cutKeySet.has(key)) {
-      drawBadge(g, x, y - 16, "CUT!", "#f97316");
+      drawBadge(g, x, y - 15, "CUT!", "#f97316");
     }
 
     svg.appendChild(g);
   }
 
-  // 2. Render Laser Beams Overlay for Active Preview
   if (activeSim?.valid && previewKey) {
     const srcCell = state.cells.get(previewKey);
-    const { x: sx, y: sy } = axialToPixel(srcCell.q, srcCell.r);
+    const { x: sx, y: sy } = cubeToPixel(srcCell.x, srcCell.y, srcCell.z);
     for (const targetKey of activeSim.laserTargetKeys) {
       const tCell = state.cells.get(targetKey);
-      const { x: tx, y: ty } = axialToPixel(tCell.q, tCell.r);
+      const { x: tx, y: ty } = cubeToPixel(tCell.x, tCell.y, tCell.z);
 
       const beam = document.createElementNS("http://www.w3.org/2000/svg", "line");
       beam.setAttribute("x1", sx);
@@ -801,9 +714,10 @@ function drawOccupant(group, cx, cy, occ) {
     const baseRing = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     baseRing.setAttribute("cx", cx);
     baseRing.setAttribute("cy", cy);
-    baseRing.setAttribute("r", 19);
+    baseRing.setAttribute("r", 18);
     baseRing.setAttribute("fill", color);
-    baseRing.setAttribute("opacity", "0.25");
+    baseRing.setAttribute("opacity", "0.28");
+    baseRing.setAttribute("pointer-events", "none");
     group.appendChild(baseRing);
 
     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -811,7 +725,7 @@ function drawOccupant(group, cx, cy, occ) {
     label.setAttribute("y", cy + 4);
     label.setAttribute("text-anchor", "middle");
     label.setAttribute("fill", "#ffffff");
-    label.setAttribute("font-size", "10");
+    label.setAttribute("font-size", "9.5");
     label.setAttribute("font-weight", "800");
     label.setAttribute("pointer-events", "none");
     label.textContent = occ.faction === "blue" ? "BLUE HQ" : "RED HQ";
@@ -819,12 +733,11 @@ function drawOccupant(group, cx, cy, occ) {
     return;
   }
 
-  // Draw laser emitters on the unit
   const dirs = getActiveLaserDirs(occ.type, occ.rot);
   for (const d of dirs) {
-    const angle = (Math.PI / 180) * (60 * d - 30);
-    const x2 = cx + 22 * Math.cos(angle);
-    const y2 = cy + 22 * Math.sin(angle);
+    const angle = (Math.PI / 180) * DIRECTIONS[d].angleDeg;
+    const x2 = cx + 21 * Math.cos(angle);
+    const y2 = cy + 21 * Math.sin(angle);
 
     const ray = document.createElementNS("http://www.w3.org/2000/svg", "line");
     ray.setAttribute("x1", cx);
@@ -841,7 +754,7 @@ function drawOccupant(group, cx, cy, occ) {
   const body = document.createElementNS("http://www.w3.org/2000/svg", "circle");
   body.setAttribute("cx", cx);
   body.setAttribute("cy", cy);
-  body.setAttribute("r", occ.type === "basic" ? 10 : 13);
+  body.setAttribute("r", occ.type === "basic" ? 9.5 : 12.5);
   body.setAttribute("fill", occ.isGhost ? "#facc15" : color);
   body.setAttribute("stroke", "#0b101b");
   body.setAttribute("stroke-width", "2.5");
@@ -872,7 +785,6 @@ function drawBadge(group, x, y, text, bgColor) {
   group.appendChild(label);
 }
 
-// Controls & Event Listeners
 function rotateSelected(delta) {
   state.selectedRotation = (state.selectedRotation + delta + 6) % 6;
   renderAll();
@@ -882,14 +794,19 @@ document.getElementById("rotateLeftBtn").addEventListener("click", () => rotateS
 document.getElementById("rotateRightBtn").addEventListener("click", () => rotateSelected(1));
 
 document.getElementById("confirmMoveBtn").addEventListener("click", () => {
-  if (state.stagedHexKey) {
-    commitMove(state.stagedHexKey, state.selectedRotation);
-  }
+  if (state.stagedHexKey) commitMove(state.stagedHexKey, state.selectedRotation);
 });
 
 document.getElementById("cancelHexBtn").addEventListener("click", () => {
   state.stagedHexKey = null;
   renderAll();
+});
+
+document.getElementById("hexBoard").addEventListener("mouseleave", () => {
+  if (state.hoverHexKey) {
+    state.hoverHexKey = null;
+    renderBoard();
+  }
 });
 
 document.getElementById("resetGameBtn").addEventListener("click", initGame);
@@ -908,25 +825,17 @@ document.getElementById("modePvpBtn").addEventListener("click", (e) => {
   initGame();
 });
 
-// Rules Modal
 const rulesModal = document.getElementById("rulesModal");
-document.getElementById("howToPlayBtn").addEventListener("click", () => {
-  rulesModal.classList.remove("hidden");
-});
-document.getElementById("closeRulesBtn").addEventListener("click", () => {
-  rulesModal.classList.add("hidden");
-});
+document.getElementById("howToPlayBtn").addEventListener("click", () => rulesModal.classList.remove("hidden"));
+document.getElementById("closeRulesBtn").addEventListener("click", () => rulesModal.classList.add("hidden"));
 rulesModal.addEventListener("click", (e) => {
   if (e.target === rulesModal) rulesModal.classList.add("hidden");
 });
 
-// Keyboard shortcuts for Desktop (Q/E to rotate, Enter to confirm, Escape to cancel)
 window.addEventListener("keydown", (e) => {
   if (e.key === "q" || e.key === "Q") rotateSelected(-1);
   if (e.key === "e" || e.key === "E") rotateSelected(1);
-  if (e.key === "Enter" && state.stagedHexKey) {
-    commitMove(state.stagedHexKey, state.selectedRotation);
-  }
+  if (e.key === "Enter" && state.stagedHexKey) commitMove(state.stagedHexKey, state.selectedRotation);
   if (e.key === "Escape" && state.stagedHexKey) {
     state.stagedHexKey = null;
     renderAll();

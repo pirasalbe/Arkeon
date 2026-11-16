@@ -1,4 +1,4 @@
-# Arkeon — Tactical Hexagonal Supply & Laser Strategy
+# Arkeon - Tactical Hexagonal Supply & Laser Strategy
 
 An open-source, zero-dependency HTML5/SVG web reconstruction of **Arkeon**, the 2011 abstract strategy board game created by **Dominique Breton** (originally prototyped as *Viral*) and published on Android by **Hyperfiction**.
 

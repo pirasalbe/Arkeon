@@ -2,7 +2,7 @@
   --bg-dark: #0b101b;
   --panel-bg: #131c2e;
   --panel-border: #23324d;
-  --text-main: #f1f5f9;
+  --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --blue-main: #38bdf8;
   --blue-glow: rgba(56, 189, 248, 0.35);
@@ -29,7 +29,6 @@ body {
   overflow-x: hidden;
 }
 
-/* Header */
 .topbar {
   display: flex;
   flex-wrap: wrap;
@@ -37,9 +36,8 @@ body {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1.25rem;
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(15, 23, 42, 0.92);
   border-bottom: 1px solid var(--panel-border);
-  backdrop-filter: blur(8px);
 }
 
 .brand {
@@ -58,6 +56,7 @@ body {
   font-size: 1.2rem;
   letter-spacing: 0.12em;
   font-weight: 800;
+  color: var(--text-main);
 }
 
 .subtitle {
@@ -104,12 +103,11 @@ body {
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: transform 0.12s ease, background 0.15s ease;
 }
 
 .btn-primary {
   background: linear-gradient(135deg, #2563eb, #0284c7);
-  color: #fff;
+  color: #ffffff;
 }
 
 .btn-secondary {
@@ -118,12 +116,6 @@ body {
   border-color: #334155;
 }
 
-.btn-primary:active,
-.btn-secondary:active {
-  transform: scale(0.97);
-}
-
-/* Main Responsive Layout */
 .workspace {
   flex: 1;
   display: grid;
@@ -146,7 +138,6 @@ body {
   gap: 0.9rem;
 }
 
-/* Turn Banner */
 .turn-banner {
   padding: 0.85rem;
   border-radius: 10px;
@@ -188,7 +179,6 @@ body {
   line-height: 1.35;
 }
 
-/* Scoreboard */
 .scoreboard {
   display: flex;
   flex-direction: column;
@@ -257,7 +247,6 @@ body {
   color: #e2e8f0;
 }
 
-/* Center Hex Board & Action Bar */
 .board-section {
   display: flex;
   flex-direction: column;
@@ -268,28 +257,26 @@ body {
 
 .board-wrapper {
   width: 100%;
-  max-width: 540px;
-  aspect-ratio: 520 / 620;
-  background: radial-gradient(circle at center, rgba(30, 41, 59, 0.7) 0%, rgba(11, 16, 27, 0.95) 85%);
+  max-width: 500px;
+  background: radial-gradient(circle at center, rgba(30, 41, 59, 0.75) 0%, rgba(11, 16, 27, 0.96) 85%);
   border: 1px solid var(--panel-border);
   border-radius: 18px;
   padding: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
 #hexBoard {
+  display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
+  max-height: 68vh;
   touch-action: manipulation;
   user-select: none;
 }
 
 .action-toolbar {
   width: 100%;
-  max-width: 540px;
+  max-width: 500px;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: 14px;
@@ -315,7 +302,8 @@ body {
 }
 
 .hex-badge {
-  color: var(--text-muted);
+  color: #e2e8f0;
+  font-weight: 600;
 }
 
 .toolbar-buttons {
@@ -333,7 +321,7 @@ body {
   font-weight: 700;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: all 0.15s ease;
+  transition: transform 0.1s ease, opacity 0.15s ease, box-shadow 0.15s ease;
 }
 
 .btn-tool {
@@ -344,12 +332,14 @@ body {
 
 .btn-confirm {
   background: var(--valid-green);
-  color: #052e16;
+  color: #042f16;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.4);
 }
 
 .btn-confirm:disabled,
 .btn-cancel:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
+  box-shadow: none;
   cursor: not-allowed;
 }
 
@@ -359,7 +349,6 @@ body {
   padding: 0.65rem 0.8rem;
 }
 
-/* Unit Arsenal Dock */
 .dock-header {
   display: flex;
   flex-direction: column;
@@ -368,6 +357,7 @@ body {
 
 .dock-header h2 {
   font-size: 1rem;
+  color: var(--text-main);
 }
 
 .dock-sub {
@@ -382,7 +372,7 @@ body {
 }
 
 .unit-card {
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(15, 23, 42, 0.85);
   border: 2px solid var(--panel-border);
   border-radius: 12px;
   padding: 0.65rem;
@@ -392,7 +382,7 @@ body {
   align-items: center;
   text-align: center;
   gap: 0.35rem;
-  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+  color: #f8fafc;
 }
 
 .unit-card:hover:not(.disabled) {
@@ -401,23 +391,25 @@ body {
 
 .unit-card.selected {
   border-color: var(--laser-amber);
-  background: rgba(250, 204, 21, 0.1);
-  box-shadow: 0 0 14px rgba(250, 204, 21, 0.22);
+  background: rgba(250, 204, 21, 0.14);
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.24);
 }
 
 .unit-card.disabled {
-  opacity: 0.38;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
 .unit-mini-svg {
-  width: 54px;
-  height: 54px;
+  width: 52px;
+  height: 52px;
+  display: block;
 }
 
 .unit-name {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 700;
+  color: #ffffff;
 }
 
 .unit-tag {
@@ -428,10 +420,8 @@ body {
   color: #cbd5e1;
 }
 
-/* SVG Hex Styling */
 .hex-cell {
   cursor: pointer;
-  transition: fill 0.15s ease, stroke 0.15s ease;
 }
 
 .hex-valid {
@@ -443,15 +433,14 @@ body {
 .hex-selected {
   stroke: var(--laser-amber);
   stroke-width: 3.5;
-  fill: rgba(250, 204, 21, 0.2) !important;
+  stroke-dasharray: none;
+  fill: rgba(250, 204, 21, 0.25) !important;
 }
 
-/* Modal */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(5, 10, 20, 0.8);
-  backdrop-filter: blur(5px);
+  background: rgba(5, 10, 20, 0.82);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -509,27 +498,21 @@ body {
   gap: 0.25rem;
 }
 
-/* Tablet & Mobile Responsive Breakpoints */
 @media (max-width: 1080px) {
   .workspace {
     grid-template-columns: 1fr;
-    max-width: 600px;
+    max-width: 560px;
     padding: 0.65rem;
   }
-
-  /* Order on Mobile/Tablet: 1. Board & Confirm Bar, 2. Unit Arsenal Dock, 3. Status/Scoreboard */
   .board-section {
     order: 1;
   }
-
   .dock-panel {
     order: 2;
   }
-
   .info-panel {
     order: 3;
   }
-
   .unit-dock {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -539,24 +522,16 @@ body {
   .topbar {
     padding: 0.6rem 0.8rem;
   }
-
   .brand h1 {
     font-size: 1.05rem;
   }
-
   .subtitle {
     display: none;
   }
-
   .unit-dock {
     grid-template-columns: repeat(2, 1fr);
   }
-
   .toolbar-buttons {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .btn-confirm {
-    grid-column: span 1;
   }
 }

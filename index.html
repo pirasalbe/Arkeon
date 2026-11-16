@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Arkeon — Tactical Hexagonal Laser & Supply Strategy</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="./style.css?v=3" />
 </head>
 <body>
   <header class="topbar">
@@ -27,7 +27,7 @@
   </header>
 
   <main class="workspace">
-    <!-- Left / Top Turn & Rules Sidebar -->
+    <!-- Left / Bottom Status & Scoreboard -->
     <aside class="panel info-panel">
       <div id="turnBanner" class="turn-banner blue-turn">
         <div class="turn-indicator">
@@ -35,7 +35,7 @@
           <span id="turnTitle">BLUE COMMANDER'S TURN</span>
         </div>
         <p id="turnStepHint" class="step-hint">
-          Step 1: Pick a unit below, then tap any highlighted green hex on the board.
+          Step 1: Pick a unit card, then tap/click any green dashed hex on the board.
         </p>
       </div>
 
@@ -67,36 +67,35 @@
 
       <div class="log-box">
         <h3>Tactical Status</h3>
-        <p id="combatLog">Match initialized. Blue moves first—tap a highlighted green hex to preview placement.</p>
+        <p id="combatLog">Match initialized. Click or tap any green dashed hex on the board to lock your target.</p>
       </div>
     </aside>
 
-    <!-- Center Responsive Hex Board -->
+    <!-- Center Vertically-Aligned Hex Board & Action Bar -->
     <section class="board-section">
       <div class="board-wrapper">
-        <svg id="hexBoard" viewBox="-260 -310 520 620" preserveAspectRatio="xMidYMid meet" aria-label="Arkeon Hexagonal Game Board"></svg>
+        <svg id="hexBoard" viewBox="-230 -250 460 500" width="460" height="500" preserveAspectRatio="xMidYMid meet" aria-label="Arkeon Hexagonal Game Board"></svg>
       </div>
 
-      <!-- Floating Touch/Click Action Bar for Rotating & Confirming Placement -->
       <div id="actionToolbar" class="action-toolbar">
         <div class="toolbar-status">
-          <span id="selectedUnitBadge" class="unit-badge">Unit: Basic Striker</span>
-          <span id="targetHexBadge" class="hex-badge">Tap a green hex on the board</span>
+          <span id="selectedUnitBadge" class="unit-badge">Selected: Basic Striker</span>
+          <span id="targetHexBadge" class="hex-badge">Click/tap any green hex on the board</span>
         </div>
         <div class="toolbar-buttons">
-          <button id="rotateLeftBtn" class="btn-tool" type="button" title="Rotate Counter-Clockwise (Q)">⟲ Rotate</button>
-          <button id="rotateRightBtn" class="btn-tool" type="button" title="Rotate Clockwise (E)">Rotate ⟳</button>
+          <button id="rotateLeftBtn" class="btn-tool" type="button">⟲ Rotate (Q)</button>
+          <button id="rotateRightBtn" class="btn-tool" type="button">Rotate ⟳ (E)</button>
           <button id="confirmMoveBtn" class="btn-confirm" type="button" disabled>Confirm Move ✓</button>
           <button id="cancelHexBtn" class="btn-cancel" type="button" disabled>Cancel ✕</button>
         </div>
       </div>
     </section>
 
-    <!-- Bottom / Right Unit Arsenal Dock -->
+    <!-- Right / Middle Unit Arsenal Dock -->
     <aside class="panel dock-panel">
       <div class="dock-header">
         <h2>Unit Arsenal</h2>
-        <span class="dock-sub">1. Tap a card &rarr; 2. Tap a green board hex</span>
+        <span class="dock-sub">1. Pick a unit &rarr; 2. Click a green hex &rarr; 3. Confirm</span>
       </div>
       <div id="unitDock" class="unit-dock"></div>
     </aside>
@@ -114,32 +113,28 @@
           <li>
             <strong>How to Place or Swap a Piece (3 Easy Steps):</strong>
             <ul>
-              <li><strong>Step 1:</strong> Select a unit card from your <em>Unit Arsenal</em> (Basic Striker is selected automatically).</li>
-              <li><strong>Step 2:</strong> Tap any <strong>green highlighted hex</strong> on the board. Empty green hexes deploy a new unit; green hexes containing your own unit upgrade/downgrade (swap) that piece.</li>
-              <li><strong>Step 3:</strong> Use the <strong>Rotate ⟲ / ⟳</strong> buttons to aim your yellow laser beams, then tap <strong>Confirm Move ✓</strong> (or tap the same hex a second time).</li>
+              <li><strong>Step 1:</strong> Click/tap a unit card in your <em>Unit Arsenal</em>.</li>
+              <li><strong>Step 2:</strong> Click/tap any <strong>green dashed hex</strong> on the board to lock your target hex.</li>
+              <li><strong>Step 3:</strong> Use <strong>Rotate ⟲ / ⟳</strong> (or keys <code>Q</code> / <code>E</code>) to aim your yellow laser beams, then click <strong>Confirm Move ✓</strong> (or click the same hex a second time).</li>
             </ul>
           </li>
           <li>
-            <strong>Directional Lasers &amp; Friendly Fire:</strong>
-            When confirmed, your unit fires lasers into the adjacent hex(es) it points at—destroying <strong>any</strong> unit in those spaces, including your own friendly units!
+            <strong>Lasers &amp; Friendly Fire:</strong>
+            Your unit fires lasers into the adjacent hex(es) it points at—destroying <strong>any</strong> unit in those spaces, including your own friendly units!
           </li>
           <li>
             <strong>Supply-Line Rule (Base Connection):</strong>
-            Every unit must keep a continuous chain of adjacent friendly units back to its Home Base. Any unit cut off from its base (marked with a red <code>CUT!</code> badge during preview) is immediately destroyed.
+            Every unit must keep a continuous chain of adjacent friendly units back to its Home Base. Any unit cut off from its base (marked with <code>CUT!</code>) is immediately destroyed.
           </li>
           <li>
             <strong>5-Unit Advanced Pool &amp; Recycling:</strong>
-            Basic Strikers are infinite. You have <strong>5 Advanced Units</strong>. If you <em>downgrade</em> an Advanced unit on the board back into a Basic Striker, the Advanced unit returns straight to your hand. Destroyed Advanced units go to your Spent pool; once all 5 are destroyed, all 5 refresh automatically!
-          </li>
-          <li>
-            <strong>Winning the Match:</strong>
-            Aim any unit's laser directly at the enemy Home Base, or eliminate all enemy units.
+            Basic Strikers are infinite. You have <strong>5 Advanced Units</strong>. Downgrading an Advanced unit on the board back into a Basic Striker returns the Advanced piece to your hand. Destroyed Advanced units go to your Spent pool; once all 5 are destroyed, all 5 refresh!
           </li>
         </ol>
       </div>
     </div>
   </div>
 
-  <script src="index.js"></script>
+  <script src="./index.js?v=3"></script>
 </body>
 </html>
