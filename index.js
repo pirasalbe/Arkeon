@@ -1,4 +1,4 @@
-// Arkeon — Symmetric 31-Hex Board with Exact Tabletop Rules, A1–E7 Coords & Move History
+// Arkeon: Symmetric 31-Hex Board with Exact Tabletop Rules, A1 to E7 Coords & Move History
 
 const HEX_SIZE = 31;
 const SQRT3 = Math.sqrt(3);
@@ -201,7 +201,7 @@ function initGame() {
   state.hoverHexKey = null;
 
   setLog(
-    "Match initialized! Deploy onto an empty green hex, or pick an Advanced unit to upgrade one of your pieces.",
+    "Match initialized. Deploy onto an empty green hex, or pick an Advanced unit to upgrade one of your pieces.",
   );
   renderAll();
 }
@@ -238,7 +238,7 @@ function getActiveLaserDirs(unitType, rot) {
   return spec.lasers.map((d) => (d + rot) % 6);
 }
 
-// Returns the coordinate label of any unit of `attackerFaction` on `cellsMap` aiming a laser at `targetKey`
+// Returns the key of any unit of `attackerFaction` on `cellsMap` aiming a laser at `targetKey`
 function findTargetingUnitKey(cellsMap, targetKey, attackerFaction) {
   for (const [k, cell] of cellsMap.entries()) {
     const occ = cell.occupant;
@@ -303,13 +303,13 @@ function simulateMove(faction, unitType, rot, targetKey) {
     return { valid: false, reason: "Hex is occupied by an enemy unit." };
   }
 
-  // RULE 1: No rotating an existing unit in place without changing its unit type!
-  // You can only Upgrade (Basic -> Advanced), Downgrade (Advanced -> Basic), or Swap to a different Advanced type.
+  // RULE 1: No rotating an existing unit in place without changing its unit type.
+  // You can only Upgrade (Basic to Advanced), Downgrade (Advanced to Basic), or Swap to a different Advanced type.
   if (isSwap && existing.type === unitType) {
     return {
       valid: false,
       reason:
-        "Cannot rotate an existing unit in place—pick a different unit card in your Arsenal to upgrade or downgrade it.",
+        "Cannot rotate an existing unit in place: pick a different unit card in your Arsenal to upgrade or downgrade it.",
     };
   }
 
@@ -360,14 +360,14 @@ function simulateMove(faction, unitType, rot, targetKey) {
   if (isAdjacentToEnemyBase && !hitsEnemyBase) {
     return {
       valid: false,
-      reason: "Units next to Enemy HQ must aim a laser directly at Enemy HQ!",
+      reason: "Units next to Enemy HQ must aim a laser directly at Enemy HQ.",
     };
   }
 
   if (laserTargetKeys.includes(ownBaseKey)) {
     return {
       valid: false,
-      reason: "Cannot fire a laser at your own Home Base!",
+      reason: "Cannot fire a laser at your own Home Base.",
     };
   }
 
@@ -396,7 +396,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     return {
       valid: false,
       reason:
-        "Illegal orientation: unit would sever its own supply line to Base!",
+        "Illegal orientation: unit would sever its own supply line to Base.",
     };
   }
 
@@ -413,9 +413,9 @@ function simulateMove(faction, unitType, rot, targetKey) {
     }
   }
 
-  // Step C: RULE 2 — Post-Attack Self-Destruction Check!
+  // Step C: RULE 2: Post-Attack Self-Destruction Check.
   // If any SURVIVING enemy unit on `simCells` is STILL aiming a laser at `targetKey`,
-  // then placing/swapping here without destroying that enemy unit would cause immediate self-destruction!
+  // then placing or swapping here without destroying that enemy unit would cause immediate self-destruction.
   const survivingShooterKey = findTargetingUnitKey(
     simCells,
     targetKey,
@@ -424,7 +424,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
   if (survivingShooterKey) {
     return {
       valid: false,
-      reason: `Under fire from enemy at ${labelOf(survivingShooterKey)}! Aim a laser at ${labelOf(survivingShooterKey)} (or cut its supply) to counter-attack!`,
+      reason: `Under fire from enemy at ${labelOf(survivingShooterKey)}. Aim a laser at ${labelOf(survivingShooterKey)} (or cut its supply) to counter-attack.`,
     };
   }
 
@@ -489,7 +489,7 @@ function recordMoveHistory(faction, unitType, rot, targetKey, sim) {
   );
 
   const actionVerb = sim.isSwap
-    ? `Swapped (${UNIT_TYPES[sim.previousOccupant.type].name} →)`
+    ? `Swapped (${UNIT_TYPES[sim.previousOccupant.type].name} to)`
     : "Deployed";
 
   const entry = {
@@ -503,7 +503,7 @@ function recordMoveHistory(faction, unitType, rot, targetKey, sim) {
     hitCoords,
     cutCoords,
     textSummary:
-      `#${state.turnNumber} [${faction.toUpperCase()}] ${actionVerb} ${UNIT_TYPES[unitType].name} at ${coord} (aim ${compassDirs} → ${targetCoords})` +
+      `#${state.turnNumber} [${faction.toUpperCase()}] ${actionVerb} ${UNIT_TYPES[unitType].name} at ${coord} (aim ${compassDirs} to ${targetCoords})` +
       (hitCoords.length ? ` | HIT: ${hitCoords.join(", ")}` : "") +
       (cutCoords.length ? ` | CUT: ${cutCoords.join(", ")}` : ""),
   };
@@ -558,7 +558,7 @@ function commitMove(targetKey, rot) {
   if (sim.hitsEnemyBase) {
     state.winner = faction;
     setLog(
-      `${lastLog} — 🏆 ${faction.toUpperCase()} WINS by striking ${enemyFaction.toUpperCase()} HQ!`,
+      `${lastLog}. 🏆 ${faction.toUpperCase()} WINS by striking ${enemyFaction.toUpperCase()} HQ.`,
     );
     renderAll();
     return;
@@ -572,7 +572,7 @@ function commitMove(targetKey, rot) {
   if (remainingEnemyUnits === 0) {
     state.winner = faction;
     setLog(
-      `${lastLog} — 🏆 ${faction.toUpperCase()} WINS by total elimination!`,
+      `${lastLog}. 🏆 ${faction.toUpperCase()} WINS by total elimination.`,
     );
     renderAll();
     return;
@@ -640,7 +640,7 @@ function runAiTurn() {
   if (!bestMove) {
     state.isAnimatingAi = false;
     state.winner = "blue";
-    setLog("BLUE WINS! Red AI is completely encircled and has no legal moves.");
+    setLog("BLUE WINS. Red AI is completely encircled and has no legal moves.");
     renderAll();
     return;
   }
@@ -724,8 +724,8 @@ function renderTurnBanner() {
 
   title.textContent = `${state.turn.toUpperCase()} COMMANDER'S TURN`;
   hint.textContent = !state.stagedHexKey
-    ? "Step 1: Pick a unit card. Step 2: Click/tap any green dashed hex on the board."
-    : `Locked on ${labelOf(state.stagedHexKey)}! Use Rotate ⟲ / ⟳ to aim, then click 'Confirm Move ✓'.`;
+    ? "Step 1: Pick a unit card. Step 2: Click or tap any green dashed hex on the board."
+    : `Locked on ${labelOf(state.stagedHexKey)}. Use Rotate ⟲ / ⟳ to aim, then click 'Confirm Move ✓'.`;
 }
 
 function renderScoreboard() {
@@ -845,7 +845,7 @@ function renderToolbar() {
   }
 
   if (!state.stagedHexKey) {
-    hexBadge.textContent = "Click/tap any green hex on the board to lock";
+    hexBadge.textContent = "Click or tap any green hex on the board to lock";
     confirmBtn.disabled = true;
     cancelBtn.disabled = true;
     return;
@@ -863,7 +863,7 @@ function renderToolbar() {
       .map((d) => DIRECTIONS[d].Compass)
       .join(",");
     const actionWord = sim.isSwap ? "Swap" : "Deploy";
-    hexBadge.textContent = `${actionWord} @ ${coord} (Aim: ${compassDirs}) — Ready!`;
+    hexBadge.textContent = `${actionWord} @ ${coord} (Aim: ${compassDirs}): Ready.`;
     confirmBtn.disabled = false;
   } else {
     hexBadge.textContent = `${coord}: ${sim.reason}`;
@@ -956,7 +956,7 @@ function renderBoard() {
         state.hoverHexKey = null;
         state.selectedRotation = check.defaultRot;
         setLog(
-          `Locked on ${labelOf(key)}! Use 'Rotate ⟲ / ⟳' to aim, then click 'Confirm Move ✓'.`,
+          `Locked on ${labelOf(key)}. Use 'Rotate ⟲ / ⟳' to aim, then click 'Confirm Move ✓'.`,
         );
         renderAll();
       } else {

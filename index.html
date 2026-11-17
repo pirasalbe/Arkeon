@@ -4,8 +4,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Arkeon — Tactical Hexagonal Laser & Supply Strategy</title>
-  <link rel="stylesheet" href="./style.css?v=6" />
+  <title>Arkeon: Tactical Hexagonal Laser & Supply Strategy</title>
+  <link rel="stylesheet" href="./style.css?v=7" />
 </head>
 
 <body>
@@ -38,7 +38,7 @@
           <span id="turnTitle">BLUE COMMANDER'S TURN</span>
         </div>
         <p id="turnStepHint" class="step-hint">
-          Step 1: Pick a unit card, then click/tap any green dashed hex on the board.
+          Step 1: Pick a unit card, then click or tap any green dashed hex on the board.
         </p>
       </div>
 
@@ -75,7 +75,7 @@
 
       <div class="history-box">
         <div class="history-header">
-          <h3>Move History (A1–E7)</h3>
+          <h3>Move History (A1 to E7)</h3>
           <button id="copyLogBtn" class="btn-copy" type="button">Copy Log</button>
         </div>
         <div id="moveHistoryList" class="history-list">
@@ -94,7 +94,7 @@
       <div id="actionToolbar" class="action-toolbar">
         <div class="toolbar-status">
           <span id="selectedUnitBadge" class="unit-badge">Selected: Basic Striker</span>
-          <span id="targetHexBadge" class="hex-badge">Click/tap any green hex on the board</span>
+          <span id="targetHexBadge" class="hex-badge">Click or tap any green hex on the board</span>
         </div>
         <div class="toolbar-buttons">
           <button id="rotateLeftBtn" class="btn-tool" type="button">⟲ Rotate (Q)</button>
@@ -120,49 +120,89 @@
     aria-labelledby="rulesTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <h2 id="rulesTitle">How to Play Arkeon</h2>
+        <h2 id="rulesTitle">How to Play Arkeon: Complete Rules</h2>
         <button id="closeRulesBtn" class="btn-close" type="button" aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
         <ol class="rules-list">
           <li>
-            <strong>Turn Actions (Deploy or Upgrade/Downgrade Swap):</strong>
+            <strong>How to Make a Move (3 Steps):</strong>
             <ul>
-              <li><strong>Deploy:</strong> Place a unit from your <em>Unit Arsenal</em> onto an empty green hex
-                connected to your supply line.</li>
-              <li><strong>Upgrade / Downgrade (Swap):</strong> Select a <em>different</em> unit type in your Arsenal and
-                click one of your existing units on the board to replace it. (Rotating an existing unit without swapping
-                its type is not allowed.)</li>
+              <li><strong>Step 1:</strong> Select a unit card from your <em>Unit Arsenal</em>.</li>
+              <li><strong>Step 2:</strong> Click or tap any <strong>green dashed hex</strong> on the board to lock your
+                target hex and preview your yellow laser beams.</li>
+              <li><strong>Step 3:</strong> Use <strong>Rotate ⟲ / ⟳</strong> (or press <code>Q</code> and
+                <code>E</code>) to aim your lasers, then click <strong>Confirm Move ✓</strong> (or click the same hex a
+                second time).</li>
             </ul>
           </li>
           <li>
-            <strong>Line of Fire &amp; Counter-Attacks:</strong>
-            You cannot end your placement in the active laser beam of a surviving enemy unit. To place on a hex guarded
-            by an enemy laser, your newly placed unit <strong>must simultaneously destroy</strong> that enemy unit
-            (either by aiming a laser back at it or by severing its supply chain)!
+            <strong>Turn Actions (Deploy vs. Replace / Swap Units):</strong>
+            <ul>
+              <li><strong>Deploy a New Unit:</strong> Place a unit from your reserve onto an empty green hex adjacent to
+                at least one of your existing units.</li>
+              <li><strong>Upgrade a Unit:</strong> Select an Advanced unit in your Arsenal, then click one of your
+                existing Basic Strikers on the board to replace it. The Basic Striker returns to your infinite supply.
+              </li>
+              <li><strong>Downgrade a Unit:</strong> Select the Basic Striker in your Arsenal, then click one of your
+                existing Advanced units on the board to replace it. The removed Advanced unit returns directly to your
+                available hand so you can redeploy it elsewhere on a later turn.</li>
+              <li><strong>Swap Advanced Units:</strong> You can also replace an Advanced unit on the board with a
+                <em>different</em> Advanced unit from your reserve, returning the previous one to your hand.</li>
+              <li><strong>No In-Place Rotation:</strong> You cannot spend a turn simply rotating a unit already on the
+                board; you must replace it with a different unit type.</li>
+            </ul>
           </li>
           <li>
-            <strong>Lasers &amp; Friendly Fire:</strong>
-            When confirmed, your unit fires lasers into the adjacent hex(es) it points at—destroying
-            <strong>any</strong> unit in those spaces, including your own friendly units!
+            <strong>Unit Arsenal &amp; The 5-Unit Refresh Cycle:</strong>
+            <ul>
+              <li><strong>Basic Striker (Infinite Supply):</strong> Fires 1 laser beam. Destroyed Basic Strikers are
+                always reusable.</li>
+              <li><strong>5 Advanced Units:</strong> Spear V (2 narrow beams), Wide Fork (2 split beams), Lancer Line (2
+                opposite beams), Trident Fan (3 front beams), and Tri-Star (3 radial beams).</li>
+              <li><strong>Graveyard Refresh:</strong> When an Advanced unit is destroyed on the board (by laser fire or
+                supply cut), it moves to your <em>Spent</em> pool. Once <strong>all 5</strong> of your Advanced units
+                are destroyed, all 5 immediately refresh and return to your available hand.</li>
+            </ul>
+          </li>
+          <li>
+            <strong>Lasers, Friendly Fire &amp; Counter-Attacks:</strong>
+            <ul>
+              <li><strong>Mandatory Friendly Fire:</strong> When placed or swapped, a unit immediately fires into the
+                adjacent hex(es) it points at, destroying <strong>any</strong> unit in those spaces, including your own
+                friendly units.</li>
+              <li><strong>Line of Fire &amp; Counter-Attacks:</strong> You cannot end your move on a hex that is still
+                being aimed at by a surviving enemy unit. To deploy or swap onto a hex guarded by an enemy laser, your
+                new unit <strong>must simultaneously destroy</strong> that enemy unit (either by shooting it directly or
+                by cutting off its supply line).</li>
+            </ul>
           </li>
           <li>
             <strong>Supply-Line Rule (Base Connection):</strong>
-            Every unit must keep a continuous chain of adjacent friendly units back to its Home Base. Any unit cut off
-            from its base (marked with <code>CUT!</code>) is immediately destroyed.
+            <ul>
+              <li>Every unit on the board must maintain an unbroken chain of adjacent friendly units connected back to
+                its Home Base (<code>RED HQ</code> at <code>C1</code>, <code>BLUE HQ</code> at <code>C7</code>).</li>
+              <li>If a laser strike destroys a link in that chain, all disconnected units (enemy or friendly, marked
+                with <code>CUT!</code>) are destroyed immediately on the same turn.</li>
+              <li>You cannot make a suicidal move that leaves your newly placed unit disconnected from your Home Base,
+                and you cannot shoot your own Home Base.</li>
+            </ul>
           </li>
           <li>
-            <strong>5-Unit Advanced Pool &amp; Recycling:</strong>
-            Basic Strikers are infinite. You have <strong>5 Advanced Units</strong>. Downgrading an Advanced unit on the
-            board back into a Basic Striker returns the Advanced piece straight to your hand. Destroyed Advanced units
-            go to your Spent pool; once all 5 are destroyed, all 5 refresh!
+            <strong>Enemy Base Restriction &amp; Winning the Game:</strong>
+            <ul>
+              <li><strong>Enemy HQ Approach Rule:</strong> You cannot place or swap a unit on a hex directly adjacent to
+                the opponent's Home Base unless that unit is aiming a laser directly at the enemy Home Base.</li>
+              <li><strong>Victory Conditions:</strong> You win immediately by firing a laser at the enemy Home Base,
+                eliminating all enemy units, or leaving your opponent with no legal moves.</li>
+            </ul>
           </li>
         </ol>
       </div>
     </div>
   </div>
 
-  <script src="./index.js?v=6"></script>
+  <script src="./index.js?v=7"></script>
 </body>
 
 </html>
