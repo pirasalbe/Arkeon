@@ -90,7 +90,7 @@ Each player commands an infinite reserve of **Basic Strikers** and a squad of **
 
 This project is an educational fan preservation and web reconstruction of _Arkeon_.
 
-- **Original Game Concept & Rules:** Dominique Breton (_Viral_ / _Arkeon_)
+- **Original Game Concept & Rules:** [Dominique Breton](https://www.facebook.com/ZeBlate) (_Viral_ / _Arkeon_)
 - **Original 2011 Android Release:** Hyperfiction
 - **Reference Sources Used for Reconstruction:**
   - [LaunchBox Games Database: Arkeon (2011) Entry](https://gamesdb.launchbox-app.com/games/details/119187-arkeon)
