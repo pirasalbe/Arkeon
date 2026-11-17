@@ -1,4 +1,4 @@
-// Arkeon: Symmetric 31-Hex Board with Counter-Attack Rule, A1 to E7 Coords & Bulletproof AI Turn Handling
+// Arkeon: Symmetric 31-Hex Board with Strict Guarded-Hex Rule, A1 to E7 Coords & Move History
 
 const HEX_SIZE = 31;
 const SQRT3 = Math.sqrt(3);
@@ -250,7 +250,7 @@ function getActiveLaserDirs(unitType, rot) {
   return spec.lasers.map((d) => (d + rot) % 6);
 }
 
-// Returns the key of any surviving unit of `attackerFaction` on `cellsMap` aiming a laser at `targetKey`
+// Returns the key of any unit of `attackerFaction` on `cellsMap` currently aiming a laser at `targetKey`
 function findTargetingUnitKey(cellsMap, targetKey, attackerFaction) {
   for (const [k, cell] of cellsMap.entries()) {
     const occ = cell.occupant;
@@ -357,6 +357,22 @@ function simulateMove(faction, unitType, rot, targetKey) {
     return fail("That Advanced unit is not currently available.");
   }
 
+  const enemyFaction = faction === "blue" ? "red" : "blue";
+
+  // RULE 2: STRICT GUARDED HEX RULE.
+  // If any enemy unit on the board is already aiming a laser at `targetKey`,
+  // you CANNOT deploy or swap onto `targetKey` at all (not even to shoot back at it).
+  const guardingEnemyKey = findTargetingUnitKey(
+    state.cells,
+    targetKey,
+    enemyFaction,
+  );
+  if (guardingEnemyKey) {
+    return fail(
+      `Blocked: ${labelOf(targetKey)} is guarded by enemy laser at ${labelOf(guardingEnemyKey)}. Flank it from an unguarded hex!`,
+    );
+  }
+
   const hasFriendlyNeighbor = getNeighbors(
     targetCell.x,
     targetCell.y,
@@ -366,7 +382,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
     return fail("Must be adjacent to your connected supply chain.");
   }
 
-  const enemyFaction = faction === "blue" ? "red" : "blue";
   const enemyBaseKey = enemyFaction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
   const ownBaseKey = faction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
 
@@ -389,7 +404,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     );
   }
 
-  // Step A: Place the unit and resolve its immediate laser attacks
+  // Step A: Place the unit and fire its lasers at adjacent targets
   const simCells = cloneCells(state.cells);
   simCells.get(targetKey).occupant = {
     faction,
@@ -435,25 +450,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
     }
   }
 
-  // Step C: Post-Attack Survival Check (Prevents 5-column stalemates while blocking suicidal moves).
-  // You can step into a hex aimed at by an enemy ONLY IF your placement destroys that enemy unit
-  // (by direct laser hit or by supply-line cut). If any surviving enemy unit is still aiming at `targetKey`, it's illegal!
-  const survivingShooterKey = findTargetingUnitKey(
-    simCells,
-    targetKey,
-    enemyFaction,
-  );
-  if (survivingShooterKey) {
-    return {
-      valid: false,
-      reason: `Guarded by enemy at ${labelOf(survivingShooterKey)}. Rotate to aim a laser at ${labelOf(survivingShooterKey)} (or cut its supply) to counter-attack.`,
-      laserDirs,
-      laserTargetKeys,
-      directHits,
-      cutUnits,
-    };
-  }
-
   return {
     valid: true,
     isSwap,
@@ -495,6 +491,26 @@ function hasAnyLegalMoves(faction) {
         if (simulateMove(faction, uType, rot, k).valid) {
           return true;
         }
+      }
+    }
+  }
+  return false;
+}
+
+// Check if a faction has at least one legal DEPLOY (onto an empty hex) or an attack/swap that hits an enemy
+function hasProductiveMove(faction) {
+  const candidateTypes = ["basic", ...state.reserves[faction].available];
+  for (const uType of candidateTypes) {
+    for (const [k] of state.cells.entries()) {
+      for (let rot = 0; rot < 6; rot++) {
+        const sim = simulateMove(faction, uType, rot, k);
+        if (!sim.valid) continue;
+        if (!sim.isSwap) return true;
+        if (sim.hitsEnemyBase) return true;
+        if (sim.directHits.some((h) => h.occupant.faction !== faction))
+          return true;
+        if (sim.cutUnits.some((c) => c.occupant.faction !== faction))
+          return true;
       }
     }
   }
@@ -639,11 +655,26 @@ function commitMove(targetKey, rot, explicitUnitType = null) {
   state.selectedUnitType = "basic";
   state.selectedRotation = state.turn === "blue" ? 0 : 3;
 
-  // Check if next player has any legal moves at all
+  // Check if next player has any legal moves, or if both players are locked in a mutual wall stalemate
   if (!hasAnyLegalMoves(state.turn)) {
     state.winner = faction;
     setLog(
       `${lastLog}. 🏆 ${faction.toUpperCase()} WINS because ${enemyFaction.toUpperCase()} has no legal moves remaining.`,
+    );
+    renderAll();
+    return;
+  }
+
+  if (!hasProductiveMove("blue") && !hasProductiveMove("red")) {
+    const blueUnits = Array.from(state.cells.values()).filter(
+      (c) => c.occupant && c.occupant.faction === "blue" && !c.occupant.isBase,
+    ).length;
+    const redUnits = Array.from(state.cells.values()).filter(
+      (c) => c.occupant && c.occupant.faction === "red" && !c.occupant.isBase,
+    ).length;
+    state.winner = blueUnits >= redUnits ? "blue" : "red";
+    setLog(
+      `${lastLog}. Mutual laser blockade reached! ${state.winner.toUpperCase()} wins on territory control (${blueUnits} Blue vs ${redUnits} Red units).`,
     );
     renderAll();
     return;
@@ -681,21 +712,23 @@ function runAiTurn() {
         if (sim.hitsEnemyBase) score += 10000;
 
         for (const h of sim.directHits)
-          score += h.occupant.faction === "blue" ? 42 : -38;
+          score += h.occupant.faction === "blue" ? 45 : -40;
         for (const c of sim.cutUnits)
-          score += c.occupant.faction === "blue" ? 60 : -55;
+          score += c.occupant.faction === "blue" ? 65 : -55;
 
+        // Reward advancing toward Blue HQ
         score += (cell.z - cell.y) * 3;
 
+        // Avoid pointless swaps that don't hit an enemy
+        if (sim.isSwap && sim.directHits.length === 0 && !sim.hitsEnemyBase) {
+          score -= 35;
+        }
         if (
           uType !== "basic" &&
           sim.directHits.length === 0 &&
           !sim.hitsEnemyBase
         ) {
           score -= 12;
-        }
-        if (sim.isSwap && sim.directHits.length === 0 && !sim.hitsEnemyBase) {
-          score -= 15;
         }
 
         score += Math.random() * 3;
@@ -949,7 +982,6 @@ function renderBoard() {
   const svg = document.getElementById("hexBoard");
   svg.innerHTML = "";
 
-  // Strictly block human green-hex highlights whenever it is Red AI's turn
   const isHumanTurn =
     !state.winner &&
     !state.isAnimatingAi &&
