@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Arkeon: Tactical Hexagonal Laser & Supply Strategy</title>
-  <link rel="stylesheet" href="./style.css?v=8" />
+  <link rel="stylesheet" href="./style.css?v=9" />
 </head>
 
 <body>
@@ -115,7 +115,7 @@
     </aside>
   </main>
 
-  <!-- How to Play Modal (Hidden by default via inline style + CSS class) -->
+  <!-- How to Play Modal -->
   <div id="rulesModal" class="modal-backdrop hidden" style="display: none;" role="dialog" aria-modal="true"
     aria-labelledby="rulesTitle">
     <div class="modal-card">
@@ -164,17 +164,18 @@
                 marked as <strong>Spent</strong> and cannot be used until your pool refreshes.</li>
               <li><strong>All-5 Refresh Rule:</strong> Once <strong>all 5</strong> of your Advanced units have been
                 destroyed or cut (<code>5/5 Spent</code>), all 5 immediately refresh and return to your available hand
-                at the same time. (Tip: If you want to reuse an Advanced unit without waiting for all 5 to die,
-                <em>downgrade</em> it to a Basic Striker before the enemy destroys it!)</li>
+                at the same time. (Tip: To reuse an Advanced unit without waiting for all 5 to die, <em>downgrade</em>
+                it to a Basic Striker on your turn before the enemy destroys it.)</li>
             </ul>
           </li>
           <li>
-            <strong>Lasers, Line of Fire &amp; Friendly Fire:</strong>
+            <strong>Lasers, Line of Fire &amp; Counter-Attacks:</strong>
             <ul>
-              <li><strong>No Stepping Into Enemy Lasers:</strong> Any hex currently pointed at by an enemy unit's laser
-                is guarded. You <strong>cannot</strong> deploy or swap a unit onto a hex that is in the line of fire of
-                an enemy laser (even if you try to aim back at it). You must flank the enemy unit from an unguarded hex
-                or upgrade a unit outside its laser beam to destroy it.</li>
+              <li><strong>Active Guard &amp; Counter-Attack Rule:</strong> If an enemy unit is aiming a laser at a hex,
+                you cannot end your turn in its laser beam while that enemy unit is still alive. To deploy or swap onto
+                a guarded hex, your unit <strong>must simultaneously destroy</strong> every enemy unit aiming at that
+                hex (either by shooting it directly or by cutting its supply chain) so that no surviving enemy laser is
+                pointing at your hex at the end of the move.</li>
               <li><strong>Mandatory Friendly Fire:</strong> When placed or swapped, a unit immediately fires into the
                 adjacent hex(es) it points at, destroying <strong>any</strong> unit in those spaces, including your own
                 friendly units.</li>
@@ -205,7 +206,7 @@
     </div>
   </div>
 
-  <script src="./index.js?v=8"></script>
+  <script src="./index.js?v=9"></script>
 </body>
 
 </html>

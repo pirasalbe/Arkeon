@@ -1,4 +1,4 @@
-// Arkeon: Symmetric 31-Hex Board with Strict Line-of-Fire Rule, A1 to E7 Coords & Move History
+// Arkeon: Symmetric 31-Hex Board with Counter-Attack Rule, A1 to E7 Coords & Bulletproof AI Turn Handling
 
 const HEX_SIZE = 31;
 const SQRT3 = Math.sqrt(3);
@@ -115,6 +115,20 @@ function hexPolygonPoints(cx, cy, radius) {
   return pts.join(" ");
 }
 
+let aiStartTimer = null;
+let aiCommitTimer = null;
+
+function clearAiTimers() {
+  if (aiStartTimer) {
+    clearTimeout(aiStartTimer);
+    aiStartTimer = null;
+  }
+  if (aiCommitTimer) {
+    clearTimeout(aiCommitTimer);
+    aiCommitTimer = null;
+  }
+}
+
 let state = {
   mode: "ai",
   turn: "blue",
@@ -136,6 +150,7 @@ let state = {
 };
 
 function initGame() {
+  clearAiTimers();
   state.turn = "blue";
   state.turnNumber = 1;
   state.winner = null;
@@ -235,7 +250,7 @@ function getActiveLaserDirs(unitType, rot) {
   return spec.lasers.map((d) => (d + rot) % 6);
 }
 
-// Returns the key of any unit of `attackerFaction` on `cellsMap` aiming a laser at `targetKey`
+// Returns the key of any surviving unit of `attackerFaction` on `cellsMap` aiming a laser at `targetKey`
 function findTargetingUnitKey(cellsMap, targetKey, attackerFaction) {
   for (const [k, cell] of cellsMap.entries()) {
     const occ = cell.occupant;
@@ -342,22 +357,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
     return fail("That Advanced unit is not currently available.");
   }
 
-  const enemyFaction = faction === "blue" ? "red" : "blue";
-
-  // RULE 2: STRICT PRE-PLACEMENT LINE-OF-FIRE RULE.
-  // If an existing enemy unit on the board is already aiming a laser at `targetKey`,
-  // you cannot deploy or swap onto `targetKey` at all (your piece would be destroyed immediately on arrival).
-  const preExistingShooterKey = findTargetingUnitKey(
-    state.cells,
-    targetKey,
-    enemyFaction,
-  );
-  if (preExistingShooterKey) {
-    return fail(
-      `Illegal move: ${labelOf(targetKey)} is in the active line of fire of enemy at ${labelOf(preExistingShooterKey)}. Flank it from an unguarded hex!`,
-    );
-  }
-
   const hasFriendlyNeighbor = getNeighbors(
     targetCell.x,
     targetCell.y,
@@ -367,6 +366,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     return fail("Must be adjacent to your connected supply chain.");
   }
 
+  const enemyFaction = faction === "blue" ? "red" : "blue";
   const enemyBaseKey = enemyFaction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
   const ownBaseKey = faction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
 
@@ -389,6 +389,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     );
   }
 
+  // Step A: Place the unit and resolve its immediate laser attacks
   const simCells = cloneCells(state.cells);
   simCells.get(targetKey).occupant = {
     faction,
@@ -407,6 +408,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     }
   }
 
+  // Step B: Check supply-line connectivity for both factions
   const ownConnected = findConnectedKeys(simCells, faction);
   if (!ownConnected.has(targetKey)) {
     return {
@@ -433,6 +435,25 @@ function simulateMove(faction, unitType, rot, targetKey) {
     }
   }
 
+  // Step C: Post-Attack Survival Check (Prevents 5-column stalemates while blocking suicidal moves).
+  // You can step into a hex aimed at by an enemy ONLY IF your placement destroys that enemy unit
+  // (by direct laser hit or by supply-line cut). If any surviving enemy unit is still aiming at `targetKey`, it's illegal!
+  const survivingShooterKey = findTargetingUnitKey(
+    simCells,
+    targetKey,
+    enemyFaction,
+  );
+  if (survivingShooterKey) {
+    return {
+      valid: false,
+      reason: `Guarded by enemy at ${labelOf(survivingShooterKey)}. Rotate to aim a laser at ${labelOf(survivingShooterKey)} (or cut its supply) to counter-attack.`,
+      laserDirs,
+      laserTargetKeys,
+      directHits,
+      cutUnits,
+    };
+  }
+
   return {
     valid: true,
     isSwap,
@@ -446,30 +467,38 @@ function simulateMove(faction, unitType, rot, targetKey) {
   };
 }
 
-function getHexAvailability(targetKey) {
+function getHexAvailability(
+  targetKey,
+  faction = state.turn,
+  unitType = state.selectedUnitType,
+) {
   const preferredRot = state.selectedRotation;
-  const currentSim = simulateMove(
-    state.turn,
-    state.selectedUnitType,
-    preferredRot,
-    targetKey,
-  );
+  const currentSim = simulateMove(faction, unitType, preferredRot, targetKey);
   if (currentSim.valid) {
     return { canPlace: true, defaultRot: preferredRot, sim: currentSim };
   }
   for (let offset = 1; offset < 6; offset++) {
     const r = (preferredRot + offset) % 6;
-    const trySim = simulateMove(
-      state.turn,
-      state.selectedUnitType,
-      r,
-      targetKey,
-    );
+    const trySim = simulateMove(faction, unitType, r, targetKey);
     if (trySim.valid) {
       return { canPlace: true, defaultRot: r, sim: trySim };
     }
   }
   return { canPlace: false, reason: currentSim.reason };
+}
+
+function hasAnyLegalMoves(faction) {
+  const candidateTypes = ["basic", ...state.reserves[faction].available];
+  for (const uType of candidateTypes) {
+    for (const [k] of state.cells.entries()) {
+      for (let rot = 0; rot < 6; rot++) {
+        if (simulateMove(faction, uType, rot, k).valid) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 function handleDestroyedUnit(faction, unitType) {
@@ -531,14 +560,17 @@ function recordMoveHistory(
   state.turnNumber++;
 }
 
-function commitMove(targetKey, rot) {
+function commitMove(targetKey, rot, explicitUnitType = null) {
   if (state.winner) return;
   const faction = state.turn;
-  const unitType = state.selectedUnitType;
+  const unitType = explicitUnitType || state.selectedUnitType;
   const sim = simulateMove(faction, unitType, rot, targetKey);
 
   if (!sim.valid) {
+    state.isAnimatingAi = false;
+    state.aiPreview = null;
     setLog(sim.reason);
+    renderAll();
     return;
   }
 
@@ -602,21 +634,38 @@ function commitMove(targetKey, rot) {
     return;
   }
 
+  // Switch turn to next player
   state.turn = enemyFaction;
   state.selectedUnitType = "basic";
   state.selectedRotation = state.turn === "blue" ? 0 : 3;
 
+  // Check if next player has any legal moves at all
+  if (!hasAnyLegalMoves(state.turn)) {
+    state.winner = faction;
+    setLog(
+      `${lastLog}. 🏆 ${faction.toUpperCase()} WINS because ${enemyFaction.toUpperCase()} has no legal moves remaining.`,
+    );
+    renderAll();
+    return;
+  }
+
   setLog(lastLog);
-  renderAll();
 
   if (state.mode === "ai" && state.turn === "red" && !state.winner) {
     state.isAnimatingAi = true;
-    setTimeout(runAiTurn, 450);
+    renderAll();
+    aiStartTimer = setTimeout(runAiTurn, 400);
+  } else {
+    renderAll();
   }
 }
 
 function runAiTurn() {
-  if (state.winner || state.turn !== "red") return;
+  if (state.winner || state.turn !== "red") {
+    state.isAnimatingAi = false;
+    renderAll();
+    return;
+  }
 
   const candidateTypes = ["basic", ...state.reserves.red.available];
   let bestMove = null;
@@ -675,9 +724,9 @@ function runAiTurn() {
   );
   renderAll();
 
-  setTimeout(() => {
-    commitMove(bestMove.key, bestMove.rot);
-  }, 1100);
+  aiCommitTimer = setTimeout(() => {
+    commitMove(bestMove.key, bestMove.rot, bestMove.unitType);
+  }, 950);
 }
 
 function setLog(msg) {
@@ -807,8 +856,9 @@ function renderUnitDock() {
   const dock = document.getElementById("unitDock");
   dock.innerHTML = "";
 
-  const activeFaction = state.turn;
-  const availableAdv = state.reserves[activeFaction].available;
+  const isAiTurn = state.mode === "ai" && state.turn === "red";
+  const displayFaction = isAiTurn ? "blue" : state.turn;
+  const availableAdv = state.reserves[displayFaction].available;
 
   Object.values(UNIT_TYPES).forEach((u) => {
     const isAvailable = !u.isAdvanced || availableAdv.includes(u.id);
@@ -818,7 +868,7 @@ function renderUnitDock() {
     card.type = "button";
     card.className = `unit-card ${isSelected ? "selected" : ""} ${!isAvailable ? "disabled" : ""}`;
     card.disabled =
-      !isAvailable || Boolean(state.winner) || state.isAnimatingAi;
+      !isAvailable || Boolean(state.winner) || isAiTurn || state.isAnimatingAi;
 
     const statusLabel = !u.isAdvanced
       ? "∞ Supply"
@@ -827,13 +877,14 @@ function renderUnitDock() {
         : "Spent";
 
     card.innerHTML = `
-      ${createMiniUnitSvg(u.id, activeFaction)}
+      ${createMiniUnitSvg(u.id, displayFaction)}
       <div class="unit-name">${u.name}</div>
       <span class="unit-tag">${u.short} • ${statusLabel}</span>
     `;
 
     card.addEventListener("click", () => {
-      if (!isAvailable || state.winner || state.isAnimatingAi) return;
+      if (!isAvailable || state.winner || isAiTurn || state.isAnimatingAi)
+        return;
       state.selectedUnitType = u.id;
       if (state.stagedHexKey) {
         const check = getHexAvailability(state.stagedHexKey);
@@ -859,7 +910,7 @@ function renderToolbar() {
   const unitName = UNIT_TYPES[state.selectedUnitType]?.name || "Basic Striker";
   unitBadge.textContent = `Selected: ${unitName}`;
 
-  if (state.isAnimatingAi) {
+  if (state.isAnimatingAi || (state.mode === "ai" && state.turn === "red")) {
     hexBadge.textContent = "Red AI is firing...";
     confirmBtn.disabled = true;
     cancelBtn.disabled = true;
@@ -898,13 +949,17 @@ function renderBoard() {
   const svg = document.getElementById("hexBoard");
   svg.innerHTML = "";
 
+  // Strictly block human green-hex highlights whenever it is Red AI's turn
   const isHumanTurn =
     !state.winner &&
     !state.isAnimatingAi &&
     (state.mode === "pvp" || state.turn === "blue");
+
   const previewKey = state.aiPreview
     ? state.aiPreview.key
-    : state.stagedHexKey || state.hoverHexKey;
+    : isHumanTurn
+      ? state.stagedHexKey || state.hoverHexKey
+      : null;
 
   let activeSim = null;
   if (state.aiPreview) {
@@ -930,9 +985,11 @@ function renderBoard() {
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
     const availability = isHumanTurn
-      ? getHexAvailability(key)
+      ? getHexAvailability(key, state.turn, state.selectedUnitType)
       : { canPlace: false };
-    const isStaged = state.stagedHexKey === key || state.aiPreview?.key === key;
+    const isStaged =
+      (isHumanTurn && state.stagedHexKey === key) ||
+      state.aiPreview?.key === key;
 
     const poly = document.createElementNS(
       "http://www.w3.org/2000/svg",
@@ -967,12 +1024,12 @@ function renderBoard() {
           key,
         );
         if (checkNow.valid) {
-          commitMove(key, state.selectedRotation);
+          commitMove(key, state.selectedRotation, state.selectedUnitType);
           return;
         }
       }
 
-      const check = getHexAvailability(key);
+      const check = getHexAvailability(key, state.turn, state.selectedUnitType);
       if (check.canPlace) {
         state.stagedHexKey = key;
         state.hoverHexKey = null;
@@ -991,7 +1048,7 @@ function renderBoard() {
     g.addEventListener("mouseenter", () => {
       if (!isHumanTurn || state.stagedHexKey || state.hoverHexKey === key)
         return;
-      const check = getHexAvailability(key);
+      const check = getHexAvailability(key, state.turn, state.selectedUnitType);
       if (check.canPlace) {
         state.hoverHexKey = key;
         state.selectedRotation = check.defaultRot;
@@ -1017,13 +1074,21 @@ function renderBoard() {
       g.appendChild(coordText);
     }
 
+    const previewUnitType = state.aiPreview
+      ? state.aiPreview.unitType
+      : state.selectedUnitType;
+    const previewRot = state.aiPreview
+      ? state.aiPreview.rot
+      : state.selectedRotation;
+    const previewFaction = state.aiPreview ? "red" : state.turn;
+
     const occToDraw =
       previewKey === key && activeSim
         ? {
-            faction: state.turn,
-            type: state.selectedUnitType,
+            faction: previewFaction,
+            type: previewUnitType,
             isBase: false,
-            rot: state.selectedRotation,
+            rot: previewRot,
             isGhost: true,
             isInvalidGhost: !activeSim.valid,
           }
@@ -1191,7 +1256,8 @@ function drawBadge(group, x, y, text, bgColor) {
 }
 
 function rotateSelected(delta) {
-  if (state.isAnimatingAi) return;
+  if (state.isAnimatingAi || (state.mode === "ai" && state.turn === "red"))
+    return;
   state.selectedRotation = (state.selectedRotation + delta + 6) % 6;
   renderAll();
 }
@@ -1204,8 +1270,16 @@ document
   .addEventListener("click", () => rotateSelected(1));
 
 document.getElementById("confirmMoveBtn").addEventListener("click", () => {
-  if (state.stagedHexKey && !state.isAnimatingAi) {
-    commitMove(state.stagedHexKey, state.selectedRotation);
+  if (
+    state.stagedHexKey &&
+    !state.isAnimatingAi &&
+    (state.mode === "pvp" || state.turn === "blue")
+  ) {
+    commitMove(
+      state.stagedHexKey,
+      state.selectedRotation,
+      state.selectedUnitType,
+    );
   }
 });
 
@@ -1274,11 +1348,17 @@ rulesModal.addEventListener("click", (e) => {
 });
 
 window.addEventListener("keydown", (e) => {
-  if (state.isAnimatingAi) return;
+  if (state.isAnimatingAi || (state.mode === "ai" && state.turn === "red"))
+    return;
   if (e.key === "q" || e.key === "Q") rotateSelected(-1);
   if (e.key === "e" || e.key === "E") rotateSelected(1);
-  if (e.key === "Enter" && state.stagedHexKey)
-    commitMove(state.stagedHexKey, state.selectedRotation);
+  if (e.key === "Enter" && state.stagedHexKey) {
+    commitMove(
+      state.stagedHexKey,
+      state.selectedRotation,
+      state.selectedUnitType,
+    );
+  }
   if (e.key === "Escape" && state.stagedHexKey) {
     state.stagedHexKey = null;
     renderAll();
