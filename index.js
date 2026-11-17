@@ -1,16 +1,16 @@
-// Arkeon — Symmetric 31-Hex Board with Strict Line-of-Fire Guarding & AI Move Animation
+// Arkeon — Symmetric 31-Hex Board with A1–E7 Grid Coordinates & Full Move History Log
 
 const HEX_SIZE = 31;
 const SQRT3 = Math.sqrt(3);
 
 // 6 Cube Directions (0 = North, clockwise around the hex)
 const DIRECTIONS = [
-  { dx: 0, dy: 1, dz: -1, angleDeg: -90 }, // 0: North (Straight Up)
-  { dx: 1, dy: 0, dz: -1, angleDeg: -30 }, // 1: North-East
-  { dx: 1, dy: -1, dz: 0, angleDeg: 30 }, // 2: South-East
-  { dx: 0, dy: -1, dz: 1, angleDeg: 90 }, // 3: South (Straight Down)
-  { dx: -1, dy: 0, dz: 1, angleDeg: 150 }, // 4: South-West
-  { dx: -1, dy: 1, dz: 0, angleDeg: -150 }, // 5: North-West
+  { dx: 0, dy: 1, dz: -1, angleDeg: -90, Compass: "N" }, // 0: North (Up)
+  { dx: 1, dy: 0, dz: -1, angleDeg: -30, Compass: "NE" }, // 1: North-East
+  { dx: 1, dy: -1, dz: 0, angleDeg: 30, Compass: "SE" }, // 2: South-East
+  { dx: 0, dy: -1, dz: 1, angleDeg: 90, Compass: "S" }, // 3: South (Down)
+  { dx: -1, dy: 0, dz: 1, angleDeg: 150, Compass: "SW" }, // 4: South-West
+  { dx: -1, dy: 1, dz: 0, angleDeg: -150, Compass: "NW" }, // 5: North-West
 ];
 
 const UNIT_TYPES = {
@@ -81,6 +81,26 @@ function keyOf(x, y, z) {
   return `${x},${y},${z}`;
 }
 
+// Convert Cube (x, y, z) into human-friendly Column/Row label (A1..E7)
+// Columns: A (x=-2), B (x=-1), C (x=0), D (x=1), E (x=2)
+// Rows: numbered 1 to N from top to bottom within each column
+const COORD_LABELS = new Map();
+(function buildCoordLabels() {
+  const cols = { "-2": "A", "-1": "B", 0: "C", 1: "D", 2: "E" };
+  for (let x = -2; x <= 2; x++) {
+    const colCells = BOARD_COORDS.filter((c) => c.x === x).sort(
+      (a, b) => a.z - a.y - (b.z - b.y),
+    );
+    colCells.forEach((c, idx) => {
+      COORD_LABELS.set(keyOf(c.x, c.y, c.z), `${cols[String(x)]}${idx + 1}`);
+    });
+  }
+})();
+
+function labelOf(key) {
+  return COORD_LABELS.get(key) || key;
+}
+
 function cubeToPixel(x, y, z) {
   const px = HEX_SIZE * 1.5 * x;
   const py = HEX_SIZE * (SQRT3 / 2) * (z - y);
@@ -101,14 +121,17 @@ function hexPolygonPoints(cx, cy, radius) {
 let state = {
   mode: "ai",
   turn: "blue",
+  turnNumber: 1,
+  showCoords: true,
   winner: null,
   isAnimatingAi: false,
-  aiPreview: null, // Holds { targetKey, unitType, rot, sim } during AI blast animation
+  aiPreview: null,
   cells: new Map(),
   reserves: {
     blue: { available: [...ADVANCED_IDS], spent: [] },
     red: { available: [...ADVANCED_IDS], spent: [] },
   },
+  moveHistory: [],
   selectedUnitType: "basic",
   selectedRotation: 0,
   stagedHexKey: null,
@@ -117,10 +140,12 @@ let state = {
 
 function initGame() {
   state.turn = "blue";
+  state.turnNumber = 1;
   state.winner = null;
   state.isAnimatingAi = false;
   state.aiPreview = null;
   state.cells = new Map();
+  state.moveHistory = [];
 
   for (const { x, y, z } of BOARD_COORDS) {
     state.cells.set(keyOf(x, y, z), { x, y, z, occupant: null });
@@ -139,6 +164,7 @@ function initGame() {
     rot: 0,
   };
 
+  // Red Starting Units: B1, C2, D1 pointing South (rot=3)
   [
     { x: -1, y: 3, z: -2, rot: 3 },
     { x: 0, y: 2, z: -2, rot: 3 },
@@ -152,6 +178,7 @@ function initGame() {
     };
   });
 
+  // Blue Starting Units: B6, C6, D6 pointing North (rot=0)
   [
     { x: -1, y: -2, z: 3, rot: 0 },
     { x: 0, y: -2, z: 2, rot: 0 },
@@ -176,7 +203,7 @@ function initGame() {
   state.hoverHexKey = null;
 
   setLog(
-    "Match ready! Hexes pointed at by an enemy laser are guarded—flank them or upgrade a unit to strike!",
+    "Match initialized! Starting units: Red at B1, C2, D1 (aiming S) | Blue at B6, C6, D6 (aiming N).",
   );
   renderAll();
 }
@@ -213,12 +240,11 @@ function getActiveLaserDirs(unitType, rot) {
   return spec.lasers.map((d) => (d + rot) % 6);
 }
 
-// Check if any unit of `attackerFaction` on `cellsMap` is currently pointing a laser at `targetKey`
 function isHexTargetedByFaction(cellsMap, targetKey, attackerFaction) {
   const targetCell = cellsMap.get(targetKey);
   if (!targetCell) return false;
 
-  for (const [k, cell] of cellsMap.entries()) {
+  for (const [, cell] of cellsMap.entries()) {
     const occ = cell.occupant;
     if (!occ || occ.isBase || occ.faction !== attackerFaction) continue;
     const dirs = getActiveLaserDirs(occ.type, occ.rot);
@@ -301,13 +327,11 @@ function simulateMove(faction, unitType, rot, targetKey) {
 
   const enemyFaction = faction === "blue" ? "red" : "blue";
 
-  // STRICT LINE-OF-FIRE RULE:
-  // You cannot deploy a unit onto a hex that is currently in the line of fire of an active enemy laser!
+  // Cannot place on a hex currently guarded by an active enemy laser
   if (isHexTargetedByFaction(state.cells, targetKey, enemyFaction)) {
     return {
       valid: false,
-      reason:
-        "Blocked! That hex is in the line of fire of an enemy laser—flank that unit first!",
+      reason: `Blocked! ${labelOf(targetKey)} is in the line of fire of an enemy laser!`,
     };
   }
 
@@ -402,6 +426,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     valid: true,
     isSwap,
     previousOccupant: existing ? { ...existing } : null,
+    laserDirs,
     laserTargetKeys,
     directHits,
     cutUnits,
@@ -446,6 +471,45 @@ function handleDestroyedUnit(faction, unitType) {
   }
 }
 
+function recordMoveHistory(faction, unitType, rot, targetKey, sim) {
+  const coord = labelOf(targetKey);
+  const compassDirs = sim.laserDirs.map((d) => DIRECTIONS[d].Compass).join(",");
+  const targetCoords = sim.laserTargetKeys.map((k) => labelOf(k)).join(",");
+  const hitCoords = sim.directHits.map(
+    (h) => `${labelOf(h.key)}(${h.occupant.faction[0].toUpperCase()})`,
+  );
+  const cutCoords = sim.cutUnits.map(
+    (c) => `${labelOf(c.key)}(${c.occupant.faction[0].toUpperCase()})`,
+  );
+
+  let actionVerb = "Deployed";
+  if (sim.isSwap) {
+    actionVerb =
+      sim.previousOccupant.type === unitType
+        ? "Rotated"
+        : `Swapped (${UNIT_TYPES[sim.previousOccupant.type].name} →)`;
+  }
+
+  const entry = {
+    turn: state.turnNumber,
+    faction,
+    coord,
+    actionVerb,
+    unitName: UNIT_TYPES[unitType].name,
+    compassDirs,
+    targetCoords,
+    hitCoords,
+    cutCoords,
+    textSummary:
+      `#${state.turnNumber} [${faction.toUpperCase()}] ${actionVerb} ${UNIT_TYPES[unitType].name} at ${coord} (aim ${compassDirs} → ${targetCoords})` +
+      (hitCoords.length ? ` | HIT: ${hitCoords.join(", ")}` : "") +
+      (cutCoords.length ? ` | CUT: ${cutCoords.join(", ")}` : ""),
+  };
+
+  state.moveHistory.push(entry);
+  state.turnNumber++;
+}
+
 function commitMove(targetKey, rot) {
   if (state.winner) return;
   const faction = state.turn;
@@ -456,6 +520,8 @@ function commitMove(targetKey, rot) {
     setLog(sim.reason);
     return;
   }
+
+  recordMoveHistory(faction, unitType, rot, targetKey, sim);
 
   const pool = state.reserves[faction];
   if (unitType !== "basic") {
@@ -485,11 +551,12 @@ function commitMove(targetKey, rot) {
   state.isAnimatingAi = false;
 
   const enemyFaction = faction === "blue" ? "red" : "blue";
+  const lastLog = state.moveHistory[state.moveHistory.length - 1].textSummary;
 
   if (sim.hitsEnemyBase) {
     state.winner = faction;
     setLog(
-      `${faction.toUpperCase()} WINS! Direct laser strike on ${enemyFaction.toUpperCase()} HQ!`,
+      `${lastLog} — 🏆 ${faction.toUpperCase()} WINS by striking ${enemyFaction.toUpperCase()} HQ!`,
     );
     renderAll();
     return;
@@ -503,7 +570,7 @@ function commitMove(targetKey, rot) {
   if (remainingEnemyUnits === 0) {
     state.winner = faction;
     setLog(
-      `${faction.toUpperCase()} WINS! All ${enemyFaction.toUpperCase()} units were eliminated!`,
+      `${lastLog} — 🏆 ${faction.toUpperCase()} WINS by total elimination!`,
     );
     renderAll();
     return;
@@ -513,21 +580,7 @@ function commitMove(targetKey, rot) {
   state.selectedUnitType = "basic";
   state.selectedRotation = state.turn === "blue" ? 0 : 3;
 
-  const actionLabel = sim.isSwap ? "updated" : "deployed";
-  const hitCount = sim.directHits.length;
-  const cutCount = sim.cutUnits.length;
-  let detailMsg = ".";
-  if (hitCount > 0 || cutCount > 0) {
-    const parts = [];
-    if (hitCount > 0)
-      parts.push(`${hitCount} direct hit${hitCount > 1 ? "s" : ""}`);
-    if (cutCount > 0) parts.push(`${cutCount} isolated by supply cut`);
-    detailMsg = ` (${parts.join(" + ")}!).`;
-  }
-
-  setLog(
-    `${faction.toUpperCase()} ${actionLabel} ${UNIT_TYPES[unitType].name}${detailMsg}`,
-  );
+  setLog(lastLog);
   renderAll();
 
   if (state.mode === "ai" && state.turn === "red" && !state.winner) {
@@ -594,11 +647,12 @@ function runAiTurn() {
     return;
   }
 
-  // Show a 1.1-second visual preview of the AI's placement, lasers, HIT! and CUT! badges before applying!
   state.selectedUnitType = bestMove.unitType;
   state.selectedRotation = bestMove.rot;
   state.aiPreview = bestMove;
-  setLog(`Red AI is deploying ${UNIT_TYPES[bestMove.unitType].name}...`);
+  setLog(
+    `Red AI is targeting ${labelOf(bestMove.key)} with ${UNIT_TYPES[bestMove.unitType].name}...`,
+  );
   renderAll();
 
   setTimeout(() => {
@@ -614,9 +668,41 @@ function setLog(msg) {
 function renderAll() {
   renderTurnBanner();
   renderScoreboard();
+  renderMoveHistory();
   renderUnitDock();
   renderBoard();
   renderToolbar();
+}
+
+function renderMoveHistory() {
+  const container = document.getElementById("moveHistoryList");
+  if (!container) return;
+
+  if (state.moveHistory.length === 0) {
+    container.innerHTML = `<div class="history-empty">No moves recorded yet.</div>`;
+    return;
+  }
+
+  container.innerHTML = state.moveHistory
+    .slice()
+    .reverse()
+    .map((m) => {
+      const hitHtml = m.hitCoords.length
+        ? ` <span class="hit-pill">HIT:${m.hitCoords.join(",")}</span>`
+        : "";
+      const cutHtml = m.cutCoords.length
+        ? ` <span class="cut-pill">CUT:${m.cutCoords.join(",")}</span>`
+        : "";
+      return `
+        <div class="history-item ${m.faction}">
+          <span class="turn-num">#${m.turn} ${m.faction.toUpperCase()}</span>
+          ${m.actionVerb} <strong>${m.unitName}</strong> @
+          <span class="coord-pill">${m.coord}</span>
+          (aim ${m.compassDirs}&rarr;${m.targetCoords})${hitHtml}${cutHtml}
+        </div>
+      `;
+    })
+    .join("");
 }
 
 function renderTurnBanner() {
@@ -641,7 +727,7 @@ function renderTurnBanner() {
   title.textContent = `${state.turn.toUpperCase()} COMMANDER'S TURN`;
   hint.textContent = !state.stagedHexKey
     ? "Step 1: Pick a unit card. Step 2: Click/tap any green dashed hex on the board."
-    : "Target locked! Use Rotate ⟲ / ⟳ to aim lasers, then click 'Confirm Move ✓'.";
+    : `Locked on ${labelOf(state.stagedHexKey)}! Use Rotate ⟲ / ⟳ to aim, then click 'Confirm Move ✓'.`;
 }
 
 function renderScoreboard() {
@@ -773,12 +859,16 @@ function renderToolbar() {
     state.selectedRotation,
     state.stagedHexKey,
   );
+  const coord = labelOf(state.stagedHexKey);
   if (sim.valid) {
-    const actionWord = sim.isSwap ? "Update Unit" : "Deploy Unit";
-    hexBadge.textContent = `Target Locked — ${actionWord} Ready!`;
+    const compassDirs = sim.laserDirs
+      .map((d) => DIRECTIONS[d].Compass)
+      .join(",");
+    const actionWord = sim.isSwap ? "Update" : "Deploy";
+    hexBadge.textContent = `${actionWord} @ ${coord} (Aim: ${compassDirs}) — Ready!`;
     confirmBtn.disabled = false;
   } else {
-    hexBadge.textContent = sim.reason;
+    hexBadge.textContent = `${coord}: ${sim.reason}`;
     confirmBtn.disabled = true;
   }
   cancelBtn.disabled = false;
@@ -868,13 +958,12 @@ function renderBoard() {
         state.hoverHexKey = null;
         state.selectedRotation = check.defaultRot;
         setLog(
-          "Target locked! Use 'Rotate ⟲ / ⟳' to aim lasers, then click 'Confirm Move ✓' (or tap hex again).",
+          `Locked on ${labelOf(key)}! Use 'Rotate ⟲ / ⟳' to aim, then click 'Confirm Move ✓'.`,
         );
         renderAll();
       } else {
         setLog(
-          check.reason ||
-            "Choose a highlighted green hex connected to your supply line.",
+          `${labelOf(key)}: ${check.reason || "Not a valid connected hex."}`,
         );
       }
     });
@@ -891,6 +980,23 @@ function renderBoard() {
     });
 
     g.appendChild(poly);
+
+    // Draw subtle coordinate label (A1..E7) at the bottom of each hex
+    if (state.showCoords && !cell.occupant?.isBase) {
+      const coordText = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "text",
+      );
+      coordText.setAttribute("x", x);
+      coordText.setAttribute("y", y + 21);
+      coordText.setAttribute("text-anchor", "middle");
+      coordText.setAttribute("fill", "rgba(148, 163, 184, 0.55)");
+      coordText.setAttribute("font-size", "8");
+      coordText.setAttribute("font-weight", "700");
+      coordText.setAttribute("pointer-events", "none");
+      coordText.textContent = labelOf(key);
+      g.appendChild(coordText);
+    }
 
     const occToDraw =
       previewKey === key && activeSim?.valid
@@ -914,8 +1020,8 @@ function renderBoard() {
     svg.appendChild(g);
   }
 
-  // Draw subtle guarded-hex sight lines for all existing units on the board
-  for (const [key, cell] of state.cells.entries()) {
+  // Draw subtle guarded-hex sight lines for all existing units
+  for (const [, cell] of state.cells.entries()) {
     const occ = cell.occupant;
     if (!occ || occ.isBase) continue;
     const { x: sx, y: sy } = cubeToPixel(cell.x, cell.y, cell.z);
@@ -1083,6 +1189,25 @@ document.getElementById("cancelHexBtn").addEventListener("click", () => {
   if (state.isAnimatingAi) return;
   state.stagedHexKey = null;
   renderAll();
+});
+
+document.getElementById("toggleCoordsBtn").addEventListener("click", (e) => {
+  state.showCoords = !state.showCoords;
+  e.target.textContent = `Coords: ${state.showCoords ? "ON" : "OFF"}`;
+  renderBoard();
+});
+
+document.getElementById("copyLogBtn").addEventListener("click", (e) => {
+  const text = state.moveHistory.length
+    ? state.moveHistory.map((m) => m.textSummary).join("\n")
+    : "No moves recorded yet.";
+  navigator.clipboard.writeText(text).then(() => {
+    const old = e.target.textContent;
+    e.target.textContent = "Copied! ✓";
+    setTimeout(() => {
+      e.target.textContent = old;
+    }, 1500);
+  });
 });
 
 document.getElementById("hexBoard").addEventListener("mouseleave", () => {

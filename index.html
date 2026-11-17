@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Arkeon — Tactical Hexagonal Laser & Supply Strategy</title>
-  <link rel="stylesheet" href="./style.css?v=3" />
+  <title>Arkeon - Tactical Hexagonal Laser & Supply Strategy</title>
+  <link rel="stylesheet" href="./style.css?v=5" />
 </head>
+
 <body>
   <header class="topbar">
     <div class="brand">
@@ -21,13 +23,14 @@
         <button id="modeAiBtn" class="btn-chip active" type="button">1P vs AI</button>
         <button id="modePvpBtn" class="btn-chip" type="button">2P Pass &amp; Play</button>
       </div>
+      <button id="toggleCoordsBtn" class="btn-secondary" type="button">Coords: ON</button>
       <button id="howToPlayBtn" class="btn-secondary" type="button">? How to Play</button>
       <button id="resetGameBtn" class="btn-primary" type="button">New Match</button>
     </div>
   </header>
 
   <main class="workspace">
-    <!-- Left / Bottom Status & Scoreboard -->
+    <!-- Left / Bottom Status, Scoreboard & Full Move History Log -->
     <aside class="panel info-panel">
       <div id="turnBanner" class="turn-banner blue-turn">
         <div class="turn-indicator">
@@ -35,7 +38,7 @@
           <span id="turnTitle">BLUE COMMANDER'S TURN</span>
         </div>
         <p id="turnStepHint" class="step-hint">
-          Step 1: Pick a unit card, then tap/click any green dashed hex on the board.
+          Step 1: Pick a unit card, then click/tap any green dashed hex on the board.
         </p>
       </div>
 
@@ -66,15 +69,26 @@
       </div>
 
       <div class="log-box">
-        <h3>Tactical Status</h3>
+        <h3>Latest Action</h3>
         <p id="combatLog">Match initialized. Click or tap any green dashed hex on the board to lock your target.</p>
+      </div>
+
+      <div class="history-box">
+        <div class="history-header">
+          <h3>Move History (A1–E7)</h3>
+          <button id="copyLogBtn" class="btn-copy" type="button">Copy Log</button>
+        </div>
+        <div id="moveHistoryList" class="history-list">
+          <div class="history-empty">No moves recorded yet.</div>
+        </div>
       </div>
     </aside>
 
     <!-- Center Vertically-Aligned Hex Board & Action Bar -->
     <section class="board-section">
       <div class="board-wrapper">
-        <svg id="hexBoard" viewBox="-230 -250 460 500" width="460" height="500" preserveAspectRatio="xMidYMid meet" aria-label="Arkeon Hexagonal Game Board"></svg>
+        <svg id="hexBoard" viewBox="-230 -250 460 500" width="460" height="500" preserveAspectRatio="xMidYMid meet"
+          aria-label="Arkeon Hexagonal Game Board"></svg>
       </div>
 
       <div id="actionToolbar" class="action-toolbar">
@@ -114,27 +128,35 @@
             <strong>How to Place or Swap a Piece (3 Easy Steps):</strong>
             <ul>
               <li><strong>Step 1:</strong> Click/tap a unit card in your <em>Unit Arsenal</em>.</li>
-              <li><strong>Step 2:</strong> Click/tap any <strong>green dashed hex</strong> on the board to lock your target hex.</li>
-              <li><strong>Step 3:</strong> Use <strong>Rotate ⟲ / ⟳</strong> (or keys <code>Q</code> / <code>E</code>) to aim your yellow laser beams, then click <strong>Confirm Move ✓</strong> (or click the same hex a second time).</li>
+              <li><strong>Step 2:</strong> Click/tap any <strong>green dashed hex</strong> on the board to lock your
+                target hex.</li>
+              <li><strong>Step 3:</strong> Use <strong>Rotate ⟲ / ⟳</strong> (or keys <code>Q</code> / <code>E</code>)
+                to aim your yellow laser beams, then click <strong>Confirm Move ✓</strong> (or click the same hex a
+                second time).</li>
             </ul>
           </li>
           <li>
+            <strong>Board Coordinates (`A1`–`E7`) &amp; Move Log:</strong>
+            Every hex has a grid coordinate (`A`–`E` left-to-right, `1`–`7` top-to-bottom). The <strong>Move
+              History</strong> panel logs every placement, laser direction (`N, NE, SE, S, SW, NW`), direct `HIT`, and
+            supply `CUT`. Click <strong>Copy Log</strong> anytime to share a match transcript.
+          </li>
+          <li>
             <strong>Lasers &amp; Friendly Fire:</strong>
-            Your unit fires lasers into the adjacent hex(es) it points at—destroying <strong>any</strong> unit in those spaces, including your own friendly units!
+            Your unit fires lasers into the adjacent hex(es) it points at—destroying <strong>any</strong> unit in those
+            spaces, including your own friendly units!
           </li>
           <li>
             <strong>Supply-Line Rule (Base Connection):</strong>
-            Every unit must keep a continuous chain of adjacent friendly units back to its Home Base. Any unit cut off from its base (marked with <code>CUT!</code>) is immediately destroyed.
-          </li>
-          <li>
-            <strong>5-Unit Advanced Pool &amp; Recycling:</strong>
-            Basic Strikers are infinite. You have <strong>5 Advanced Units</strong>. Downgrading an Advanced unit on the board back into a Basic Striker returns the Advanced piece to your hand. Destroyed Advanced units go to your Spent pool; once all 5 are destroyed, all 5 refresh!
+            Every unit must keep a continuous chain of adjacent friendly units back to its Home Base. Any unit cut off
+            from its base (marked with <code>CUT!</code>) is immediately destroyed.
           </li>
         </ol>
       </div>
     </div>
   </div>
 
-  <script src="./index.js?v=3"></script>
+  <script src="./index.js?v=5"></script>
 </body>
+
 </html>
