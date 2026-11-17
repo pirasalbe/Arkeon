@@ -1,4 +1,4 @@
-// Arkeon: Symmetric 31-Hex Board with Exact Tabletop Rules, A1 to E7 Coords & Move History
+// Arkeon: Symmetric 31-Hex Board with Strict Line-of-Fire Rule, A1 to E7 Coords & Move History
 
 const HEX_SIZE = 31;
 const SQRT3 = Math.sqrt(3);
@@ -81,7 +81,6 @@ function keyOf(x, y, z) {
   return `${x},${y},${z}`;
 }
 
-// Convert Cube (x, y, z) into human-friendly Column/Row label (A1..E7)
 const COORD_LABELS = new Map();
 (function buildCoordLabels() {
   const cols = { "-2": "A", "-1": "B", 0: "C", 1: "D", 2: "E" };
@@ -162,7 +161,6 @@ function initGame() {
     rot: 0,
   };
 
-  // Red Starting Units: B1, C2, D1 pointing South (rot=3)
   [
     { x: -1, y: 3, z: -2, rot: 3 },
     { x: 0, y: 2, z: -2, rot: 3 },
@@ -176,7 +174,6 @@ function initGame() {
     };
   });
 
-  // Blue Starting Units: B5, C6, D5 pointing North (rot=0)
   [
     { x: -1, y: -2, z: 3, rot: 0 },
     { x: 0, y: -2, z: 2, rot: 0 },
@@ -292,52 +289,16 @@ function findConnectedKeys(cellsMap, faction) {
 
 function simulateMove(faction, unitType, rot, targetKey) {
   const targetCell = state.cells.get(targetKey);
-  if (!targetCell) return { valid: false, reason: "Invalid hex." };
-
-  const existing = targetCell.occupant;
-  if (existing && existing.isBase)
-    return { valid: false, reason: "Cannot place on a Home Base." };
-
-  const isSwap = Boolean(existing && existing.faction === faction);
-  if (existing && existing.faction !== faction) {
-    return { valid: false, reason: "Hex is occupied by an enemy unit." };
-  }
-
-  // RULE 1: No rotating an existing unit in place without changing its unit type.
-  // You can only Upgrade (Basic to Advanced), Downgrade (Advanced to Basic), or Swap to a different Advanced type.
-  if (isSwap && existing.type === unitType) {
+  if (!targetCell) {
     return {
       valid: false,
-      reason:
-        "Cannot rotate an existing unit in place: pick a different unit card in your Arsenal to upgrade or downgrade it.",
+      reason: "Invalid hex.",
+      laserDirs: [],
+      laserTargetKeys: [],
+      directHits: [],
+      cutUnits: [],
     };
   }
-
-  if (
-    unitType !== "basic" &&
-    !state.reserves[faction].available.includes(unitType)
-  ) {
-    return {
-      valid: false,
-      reason: "That Advanced unit is not currently available.",
-    };
-  }
-
-  const hasFriendlyNeighbor = getNeighbors(
-    targetCell.x,
-    targetCell.y,
-    targetCell.z,
-  ).some((n) => n.cell.occupant && n.cell.occupant.faction === faction);
-  if (!hasFriendlyNeighbor) {
-    return {
-      valid: false,
-      reason: "Must be adjacent to your connected supply chain.",
-    };
-  }
-
-  const enemyFaction = faction === "blue" ? "red" : "blue";
-  const enemyBaseKey = enemyFaction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
-  const ownBaseKey = faction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
 
   const laserDirs = getActiveLaserDirs(unitType, rot);
   const laserTargetKeys = laserDirs
@@ -350,6 +311,65 @@ function simulateMove(faction, unitType, rot, targetKey) {
     )
     .filter((k) => state.cells.has(k));
 
+  const fail = (reason) => ({
+    valid: false,
+    reason,
+    laserDirs,
+    laserTargetKeys,
+    directHits: [],
+    cutUnits: [],
+  });
+
+  const existing = targetCell.occupant;
+  if (existing && existing.isBase) return fail("Cannot place on a Home Base.");
+
+  const isSwap = Boolean(existing && existing.faction === faction);
+  if (existing && existing.faction !== faction) {
+    return fail("Hex is occupied by an enemy unit.");
+  }
+
+  // RULE 1: No rotating an existing unit in place without changing its unit type.
+  if (isSwap && existing.type === unitType) {
+    return fail(
+      "Cannot rotate an existing unit in place: pick a different unit card in your Arsenal to upgrade or downgrade it.",
+    );
+  }
+
+  if (
+    unitType !== "basic" &&
+    !state.reserves[faction].available.includes(unitType)
+  ) {
+    return fail("That Advanced unit is not currently available.");
+  }
+
+  const enemyFaction = faction === "blue" ? "red" : "blue";
+
+  // RULE 2: STRICT PRE-PLACEMENT LINE-OF-FIRE RULE.
+  // If an existing enemy unit on the board is already aiming a laser at `targetKey`,
+  // you cannot deploy or swap onto `targetKey` at all (your piece would be destroyed immediately on arrival).
+  const preExistingShooterKey = findTargetingUnitKey(
+    state.cells,
+    targetKey,
+    enemyFaction,
+  );
+  if (preExistingShooterKey) {
+    return fail(
+      `Illegal move: ${labelOf(targetKey)} is in the active line of fire of enemy at ${labelOf(preExistingShooterKey)}. Flank it from an unguarded hex!`,
+    );
+  }
+
+  const hasFriendlyNeighbor = getNeighbors(
+    targetCell.x,
+    targetCell.y,
+    targetCell.z,
+  ).some((n) => n.cell.occupant && n.cell.occupant.faction === faction);
+  if (!hasFriendlyNeighbor) {
+    return fail("Must be adjacent to your connected supply chain.");
+  }
+
+  const enemyBaseKey = enemyFaction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
+  const ownBaseKey = faction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
+
   const isAdjacentToEnemyBase = getNeighbors(
     targetCell.x,
     targetCell.y,
@@ -358,20 +378,17 @@ function simulateMove(faction, unitType, rot, targetKey) {
   const hitsEnemyBase = laserTargetKeys.includes(enemyBaseKey);
 
   if (isAdjacentToEnemyBase && !hitsEnemyBase) {
-    return {
-      valid: false,
-      reason: "Units next to Enemy HQ must aim a laser directly at Enemy HQ.",
-    };
+    return fail(
+      "Units next to Enemy HQ must aim a laser directly at Enemy HQ.",
+    );
   }
 
   if (laserTargetKeys.includes(ownBaseKey)) {
-    return {
-      valid: false,
-      reason: "Cannot fire a laser at your own Home Base.",
-    };
+    return fail(
+      "Cannot fire a laser at your own Home Base. Rotate to another angle.",
+    );
   }
 
-  // Step A: Place the unit and fire its lasers at adjacent targets
   const simCells = cloneCells(state.cells);
   simCells.get(targetKey).occupant = {
     faction,
@@ -390,13 +407,16 @@ function simulateMove(faction, unitType, rot, targetKey) {
     }
   }
 
-  // Step B: Calculate supply-line connectivity for both factions
   const ownConnected = findConnectedKeys(simCells, faction);
   if (!ownConnected.has(targetKey)) {
     return {
       valid: false,
       reason:
-        "Illegal orientation: unit would sever its own supply line to Base.",
+        "Illegal orientation: unit would sever its own supply line to Base. Rotate to another angle.",
+      laserDirs,
+      laserTargetKeys,
+      directHits,
+      cutUnits: [],
     };
   }
 
@@ -411,21 +431,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
       cutUnits.push({ key: k, occupant: { ...cell.occupant } });
       cell.occupant = null;
     }
-  }
-
-  // Step C: RULE 2: Post-Attack Self-Destruction Check.
-  // If any SURVIVING enemy unit on `simCells` is STILL aiming a laser at `targetKey`,
-  // then placing or swapping here without destroying that enemy unit would cause immediate self-destruction.
-  const survivingShooterKey = findTargetingUnitKey(
-    simCells,
-    targetKey,
-    enemyFaction,
-  );
-  if (survivingShooterKey) {
-    return {
-      valid: false,
-      reason: `Under fire from enemy at ${labelOf(survivingShooterKey)}. Aim a laser at ${labelOf(survivingShooterKey)} (or cut its supply) to counter-attack.`,
-    };
   }
 
   return {
@@ -468,16 +473,25 @@ function getHexAvailability(targetKey) {
 }
 
 function handleDestroyedUnit(faction, unitType) {
-  if (!UNIT_TYPES[unitType]?.isAdvanced) return;
+  if (!UNIT_TYPES[unitType]?.isAdvanced) return null;
   const pool = state.reserves[faction];
   if (!pool.spent.includes(unitType)) pool.spent.push(unitType);
   if (pool.spent.length >= 5) {
     pool.available = [...ADVANCED_IDS];
     pool.spent = [];
+    return `${faction.toUpperCase()} refreshed all 5 Advanced units!`;
   }
+  return null;
 }
 
-function recordMoveHistory(faction, unitType, rot, targetKey, sim) {
+function recordMoveHistory(
+  faction,
+  unitType,
+  rot,
+  targetKey,
+  sim,
+  refreshEvents,
+) {
   const coord = labelOf(targetKey);
   const compassDirs = sim.laserDirs.map((d) => DIRECTIONS[d].Compass).join(",");
   const targetCoords = sim.laserTargetKeys.map((k) => labelOf(k)).join(",");
@@ -492,6 +506,10 @@ function recordMoveHistory(faction, unitType, rot, targetKey, sim) {
     ? `Swapped (${UNIT_TYPES[sim.previousOccupant.type].name} to)`
     : "Deployed";
 
+  const refreshNote = refreshEvents.length
+    ? ` | REFRESH: ${refreshEvents.join(" ")}`
+    : "";
+
   const entry = {
     turn: state.turnNumber,
     faction,
@@ -505,7 +523,8 @@ function recordMoveHistory(faction, unitType, rot, targetKey, sim) {
     textSummary:
       `#${state.turnNumber} [${faction.toUpperCase()}] ${actionVerb} ${UNIT_TYPES[unitType].name} at ${coord} (aim ${compassDirs} to ${targetCoords})` +
       (hitCoords.length ? ` | HIT: ${hitCoords.join(", ")}` : "") +
-      (cutCoords.length ? ` | CUT: ${cutCoords.join(", ")}` : ""),
+      (cutCoords.length ? ` | CUT: ${cutCoords.join(", ")}` : "") +
+      refreshNote,
   };
 
   state.moveHistory.push(entry);
@@ -523,8 +542,6 @@ function commitMove(targetKey, rot) {
     return;
   }
 
-  recordMoveHistory(faction, unitType, rot, targetKey, sim);
-
   const pool = state.reserves[faction];
   if (unitType !== "basic") {
     pool.available = pool.available.filter((id) => id !== unitType);
@@ -541,10 +558,17 @@ function commitMove(targetKey, rot) {
     }
   }
 
-  for (const hit of sim.directHits)
-    handleDestroyedUnit(hit.occupant.faction, hit.occupant.type);
-  for (const cut of sim.cutUnits)
-    handleDestroyedUnit(cut.occupant.faction, cut.occupant.type);
+  const refreshEvents = [];
+  for (const hit of sim.directHits) {
+    const msg = handleDestroyedUnit(hit.occupant.faction, hit.occupant.type);
+    if (msg) refreshEvents.push(msg);
+  }
+  for (const cut of sim.cutUnits) {
+    const msg = handleDestroyedUnit(cut.occupant.faction, cut.occupant.type);
+    if (msg) refreshEvents.push(msg);
+  }
+
+  recordMoveHistory(faction, unitType, rot, targetKey, sim, refreshEvents);
 
   state.cells = sim.simCells;
   state.stagedHexKey = null;
@@ -612,10 +636,8 @@ function runAiTurn() {
         for (const c of sim.cutUnits)
           score += c.occupant.faction === "blue" ? 60 : -55;
 
-        // Reward advancing toward Blue HQ
         score += (cell.z - cell.y) * 3;
 
-        // Avoid wasting Advanced units or swapping without hitting anything
         if (
           uType !== "basic" &&
           sim.directHits.length === 0 &&
@@ -897,10 +919,10 @@ function renderBoard() {
   }
 
   const cutKeySet = new Set(
-    activeSim?.valid ? activeSim.cutUnits.map((c) => c.key) : [],
+    activeSim ? activeSim.cutUnits.map((c) => c.key) : [],
   );
   const hitKeySet = new Set(
-    activeSim?.valid ? activeSim.directHits.map((h) => h.key) : [],
+    activeSim ? activeSim.directHits.map((h) => h.key) : [],
   );
 
   for (const [key, cell] of state.cells.entries()) {
@@ -979,7 +1001,6 @@ function renderBoard() {
 
     g.appendChild(poly);
 
-    // Draw coordinate label (A1..E7) at the bottom of each hex
     if (state.showCoords && !cell.occupant?.isBase) {
       const coordText = document.createElementNS(
         "http://www.w3.org/2000/svg",
@@ -997,13 +1018,14 @@ function renderBoard() {
     }
 
     const occToDraw =
-      previewKey === key && activeSim?.valid
+      previewKey === key && activeSim
         ? {
             faction: state.turn,
             type: state.selectedUnitType,
             isBase: false,
             rot: state.selectedRotation,
             isGhost: true,
+            isInvalidGhost: !activeSim.valid,
           }
         : cell.occupant;
 
@@ -1018,7 +1040,6 @@ function renderBoard() {
     svg.appendChild(g);
   }
 
-  // Draw subtle guarded-hex sight lines for all existing units
   for (const [, cell] of state.cells.entries()) {
     const occ = cell.occupant;
     if (!occ || occ.isBase) continue;
@@ -1055,10 +1076,10 @@ function renderBoard() {
     }
   }
 
-  // Draw active preview laser beams
-  if (activeSim?.valid && previewKey) {
+  if (activeSim && previewKey) {
     const srcCell = state.cells.get(previewKey);
     const { x: sx, y: sy } = cubeToPixel(srcCell.x, srcCell.y, srcCell.z);
+    const beamColor = activeSim.valid ? "#facc15" : "#ef4444";
     for (const targetKey of activeSim.laserTargetKeys) {
       const tCell = state.cells.get(targetKey);
       const { x: tx, y: ty } = cubeToPixel(tCell.x, tCell.y, tCell.z);
@@ -1071,7 +1092,7 @@ function renderBoard() {
       beam.setAttribute("y1", sy);
       beam.setAttribute("x2", tx);
       beam.setAttribute("y2", ty);
-      beam.setAttribute("stroke", "#facc15");
+      beam.setAttribute("stroke", beamColor);
       beam.setAttribute("stroke-width", "4");
       beam.setAttribute("stroke-dasharray", "6 4");
       beam.setAttribute("pointer-events", "none");
@@ -1081,7 +1102,12 @@ function renderBoard() {
 }
 
 function drawOccupant(group, cx, cy, occ) {
-  const color = occ.faction === "blue" ? "#38bdf8" : "#f43f5e";
+  const baseColor = occ.faction === "blue" ? "#38bdf8" : "#f43f5e";
+  const pieceColor = occ.isGhost
+    ? occ.isInvalidGhost
+      ? "#ef4444"
+      : "#facc15"
+    : baseColor;
 
   if (occ.isBase) {
     const baseRing = document.createElementNS(
@@ -1091,7 +1117,7 @@ function drawOccupant(group, cx, cy, occ) {
     baseRing.setAttribute("cx", cx);
     baseRing.setAttribute("cy", cy);
     baseRing.setAttribute("r", 18);
-    baseRing.setAttribute("fill", color);
+    baseRing.setAttribute("fill", baseColor);
     baseRing.setAttribute("opacity", "0.28");
     baseRing.setAttribute("pointer-events", "none");
     group.appendChild(baseRing);
@@ -1123,7 +1149,7 @@ function drawOccupant(group, cx, cy, occ) {
     ray.setAttribute("y1", cy);
     ray.setAttribute("x2", x2);
     ray.setAttribute("y2", y2);
-    ray.setAttribute("stroke", occ.isGhost ? "#facc15" : color);
+    ray.setAttribute("stroke", pieceColor);
     ray.setAttribute("stroke-width", "3.5");
     ray.setAttribute("stroke-linecap", "round");
     ray.setAttribute("pointer-events", "none");
@@ -1134,7 +1160,7 @@ function drawOccupant(group, cx, cy, occ) {
   body.setAttribute("cx", cx);
   body.setAttribute("cy", cy);
   body.setAttribute("r", occ.type === "basic" ? 9.5 : 12.5);
-  body.setAttribute("fill", occ.isGhost ? "#facc15" : color);
+  body.setAttribute("fill", pieceColor);
   body.setAttribute("stroke", "#0b101b");
   body.setAttribute("stroke-width", "2.5");
   body.setAttribute("pointer-events", "none");

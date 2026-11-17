@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Arkeon: Tactical Hexagonal Laser & Supply Strategy</title>
-  <link rel="stylesheet" href="./style.css?v=7" />
+  <link rel="stylesheet" href="./style.css?v=8" />
 </head>
 
 <body>
@@ -154,27 +154,30 @@
             </ul>
           </li>
           <li>
-            <strong>Unit Arsenal &amp; The 5-Unit Refresh Cycle:</strong>
+            <strong>When Do You Get Spent / Cut Advanced Units Back?</strong>
             <ul>
               <li><strong>Basic Striker (Infinite Supply):</strong> Fires 1 laser beam. Destroyed Basic Strikers are
                 always reusable.</li>
-              <li><strong>5 Advanced Units:</strong> Spear V (2 narrow beams), Wide Fork (2 split beams), Lancer Line (2
-                opposite beams), Trident Fan (3 front beams), and Tri-Star (3 radial beams).</li>
-              <li><strong>Graveyard Refresh:</strong> When an Advanced unit is destroyed on the board (by laser fire or
-                supply cut), it moves to your <em>Spent</em> pool. Once <strong>all 5</strong> of your Advanced units
-                are destroyed, all 5 immediately refresh and return to your available hand.</li>
+              <li><strong>5 Advanced Units:</strong> Spear V, Wide Fork, Lancer Line, Trident Fan, and Tri-Star.</li>
+              <li><strong>Destroyed or Cut Units Go to Spent Pool:</strong> When an Advanced unit is destroyed on the
+                board (either by a direct laser <code>HIT!</code> or isolated by a supply-line <code>CUT!</code>), it is
+                marked as <strong>Spent</strong> and cannot be used until your pool refreshes.</li>
+              <li><strong>All-5 Refresh Rule:</strong> Once <strong>all 5</strong> of your Advanced units have been
+                destroyed or cut (<code>5/5 Spent</code>), all 5 immediately refresh and return to your available hand
+                at the same time. (Tip: If you want to reuse an Advanced unit without waiting for all 5 to die,
+                <em>downgrade</em> it to a Basic Striker before the enemy destroys it!)</li>
             </ul>
           </li>
           <li>
-            <strong>Lasers, Friendly Fire &amp; Counter-Attacks:</strong>
+            <strong>Lasers, Line of Fire &amp; Friendly Fire:</strong>
             <ul>
+              <li><strong>No Stepping Into Enemy Lasers:</strong> Any hex currently pointed at by an enemy unit's laser
+                is guarded. You <strong>cannot</strong> deploy or swap a unit onto a hex that is in the line of fire of
+                an enemy laser (even if you try to aim back at it). You must flank the enemy unit from an unguarded hex
+                or upgrade a unit outside its laser beam to destroy it.</li>
               <li><strong>Mandatory Friendly Fire:</strong> When placed or swapped, a unit immediately fires into the
                 adjacent hex(es) it points at, destroying <strong>any</strong> unit in those spaces, including your own
                 friendly units.</li>
-              <li><strong>Line of Fire &amp; Counter-Attacks:</strong> You cannot end your move on a hex that is still
-                being aimed at by a surviving enemy unit. To deploy or swap onto a hex guarded by an enemy laser, your
-                new unit <strong>must simultaneously destroy</strong> that enemy unit (either by shooting it directly or
-                by cutting off its supply line).</li>
             </ul>
           </li>
           <li>
@@ -202,7 +205,7 @@
     </div>
   </div>
 
-  <script src="./index.js?v=7"></script>
+  <script src="./index.js?v=8"></script>
 </body>
 
 </html>
