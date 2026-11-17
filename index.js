@@ -1,4 +1,4 @@
-// Arkeon — Symmetric 31-Hex Board with A1–E7 Grid Coordinates & Full Move History Log
+// Arkeon — Symmetric 31-Hex Board with Exact Tabletop Rules, A1–E7 Coords & Move History
 
 const HEX_SIZE = 31;
 const SQRT3 = Math.sqrt(3);
@@ -82,8 +82,6 @@ function keyOf(x, y, z) {
 }
 
 // Convert Cube (x, y, z) into human-friendly Column/Row label (A1..E7)
-// Columns: A (x=-2), B (x=-1), C (x=0), D (x=1), E (x=2)
-// Rows: numbered 1 to N from top to bottom within each column
 const COORD_LABELS = new Map();
 (function buildCoordLabels() {
   const cols = { "-2": "A", "-1": "B", 0: "C", 1: "D", 2: "E" };
@@ -178,7 +176,7 @@ function initGame() {
     };
   });
 
-  // Blue Starting Units: B6, C6, D6 pointing North (rot=0)
+  // Blue Starting Units: B5, C6, D5 pointing North (rot=0)
   [
     { x: -1, y: -2, z: 3, rot: 0 },
     { x: 0, y: -2, z: 2, rot: 0 },
@@ -203,7 +201,7 @@ function initGame() {
   state.hoverHexKey = null;
 
   setLog(
-    "Match initialized! Starting units: Red at B1, C2, D1 (aiming S) | Blue at B6, C6, D6 (aiming N).",
+    "Match initialized! Deploy onto an empty green hex, or pick an Advanced unit to upgrade one of your pieces.",
   );
   renderAll();
 }
@@ -240,11 +238,9 @@ function getActiveLaserDirs(unitType, rot) {
   return spec.lasers.map((d) => (d + rot) % 6);
 }
 
-function isHexTargetedByFaction(cellsMap, targetKey, attackerFaction) {
-  const targetCell = cellsMap.get(targetKey);
-  if (!targetCell) return false;
-
-  for (const [, cell] of cellsMap.entries()) {
+// Returns the coordinate label of any unit of `attackerFaction` on `cellsMap` aiming a laser at `targetKey`
+function findTargetingUnitKey(cellsMap, targetKey, attackerFaction) {
+  for (const [k, cell] of cellsMap.entries()) {
     const occ = cell.occupant;
     if (!occ || occ.isBase || occ.faction !== attackerFaction) continue;
     const dirs = getActiveLaserDirs(occ.type, occ.rot);
@@ -255,11 +251,11 @@ function isHexTargetedByFaction(cellsMap, targetKey, attackerFaction) {
         cell.z + DIRECTIONS[d].dz,
       );
       if (aimedKey === targetKey) {
-        return true;
+        return k;
       }
     }
   }
-  return false;
+  return null;
 }
 
 function findConnectedKeys(cellsMap, faction) {
@@ -307,11 +303,13 @@ function simulateMove(faction, unitType, rot, targetKey) {
     return { valid: false, reason: "Hex is occupied by an enemy unit." };
   }
 
-  if (isSwap && existing.type === unitType && existing.rot === rot) {
+  // RULE 1: No rotating an existing unit in place without changing its unit type!
+  // You can only Upgrade (Basic -> Advanced), Downgrade (Advanced -> Basic), or Swap to a different Advanced type.
+  if (isSwap && existing.type === unitType) {
     return {
       valid: false,
       reason:
-        "Use Rotate ⟲ / ⟳ or pick a different unit card to modify this unit.",
+        "Cannot rotate an existing unit in place—pick a different unit card in your Arsenal to upgrade or downgrade it.",
     };
   }
 
@@ -322,16 +320,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
     return {
       valid: false,
       reason: "That Advanced unit is not currently available.",
-    };
-  }
-
-  const enemyFaction = faction === "blue" ? "red" : "blue";
-
-  // Cannot place on a hex currently guarded by an active enemy laser
-  if (isHexTargetedByFaction(state.cells, targetKey, enemyFaction)) {
-    return {
-      valid: false,
-      reason: `Blocked! ${labelOf(targetKey)} is in the line of fire of an enemy laser!`,
     };
   }
 
@@ -347,6 +335,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     };
   }
 
+  const enemyFaction = faction === "blue" ? "red" : "blue";
   const enemyBaseKey = enemyFaction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
   const ownBaseKey = faction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
 
@@ -382,6 +371,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     };
   }
 
+  // Step A: Place the unit and fire its lasers at adjacent targets
   const simCells = cloneCells(state.cells);
   simCells.get(targetKey).occupant = {
     faction,
@@ -400,6 +390,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     }
   }
 
+  // Step B: Calculate supply-line connectivity for both factions
   const ownConnected = findConnectedKeys(simCells, faction);
   if (!ownConnected.has(targetKey)) {
     return {
@@ -420,6 +411,21 @@ function simulateMove(faction, unitType, rot, targetKey) {
       cutUnits.push({ key: k, occupant: { ...cell.occupant } });
       cell.occupant = null;
     }
+  }
+
+  // Step C: RULE 2 — Post-Attack Self-Destruction Check!
+  // If any SURVIVING enemy unit on `simCells` is STILL aiming a laser at `targetKey`,
+  // then placing/swapping here without destroying that enemy unit would cause immediate self-destruction!
+  const survivingShooterKey = findTargetingUnitKey(
+    simCells,
+    targetKey,
+    enemyFaction,
+  );
+  if (survivingShooterKey) {
+    return {
+      valid: false,
+      reason: `Under fire from enemy at ${labelOf(survivingShooterKey)}! Aim a laser at ${labelOf(survivingShooterKey)} (or cut its supply) to counter-attack!`,
+    };
   }
 
   return {
@@ -482,13 +488,9 @@ function recordMoveHistory(faction, unitType, rot, targetKey, sim) {
     (c) => `${labelOf(c.key)}(${c.occupant.faction[0].toUpperCase()})`,
   );
 
-  let actionVerb = "Deployed";
-  if (sim.isSwap) {
-    actionVerb =
-      sim.previousOccupant.type === unitType
-        ? "Rotated"
-        : `Swapped (${UNIT_TYPES[sim.previousOccupant.type].name} →)`;
-  }
+  const actionVerb = sim.isSwap
+    ? `Swapped (${UNIT_TYPES[sim.previousOccupant.type].name} →)`
+    : "Deployed";
 
   const entry = {
     turn: state.turnNumber,
@@ -602,15 +604,6 @@ function runAiTurn() {
         const sim = simulateMove("red", uType, rot, k);
         if (!sim.valid) continue;
 
-        if (
-          sim.isSwap &&
-          sim.previousOccupant.type === uType &&
-          sim.directHits.length === 0 &&
-          !sim.hitsEnemyBase
-        ) {
-          continue;
-        }
-
         let score = 0;
         if (sim.hitsEnemyBase) score += 10000;
 
@@ -619,14 +612,19 @@ function runAiTurn() {
         for (const c of sim.cutUnits)
           score += c.occupant.faction === "blue" ? 60 : -55;
 
+        // Reward advancing toward Blue HQ
         score += (cell.z - cell.y) * 3;
 
+        // Avoid wasting Advanced units or swapping without hitting anything
         if (
           uType !== "basic" &&
           sim.directHits.length === 0 &&
           !sim.hitsEnemyBase
         ) {
-          score -= 10;
+          score -= 12;
+        }
+        if (sim.isSwap && sim.directHits.length === 0 && !sim.hitsEnemyBase) {
+          score -= 15;
         }
 
         score += Math.random() * 3;
@@ -864,7 +862,7 @@ function renderToolbar() {
     const compassDirs = sim.laserDirs
       .map((d) => DIRECTIONS[d].Compass)
       .join(",");
-    const actionWord = sim.isSwap ? "Update" : "Deploy";
+    const actionWord = sim.isSwap ? "Swap" : "Deploy";
     hexBadge.textContent = `${actionWord} @ ${coord} (Aim: ${compassDirs}) — Ready!`;
     confirmBtn.disabled = false;
   } else {
@@ -981,7 +979,7 @@ function renderBoard() {
 
     g.appendChild(poly);
 
-    // Draw subtle coordinate label (A1..E7) at the bottom of each hex
+    // Draw coordinate label (A1..E7) at the bottom of each hex
     if (state.showCoords && !cell.occupant?.isBase) {
       const coordText = document.createElementNS(
         "http://www.w3.org/2000/svg",
@@ -1234,14 +1232,19 @@ document.getElementById("modePvpBtn").addEventListener("click", (e) => {
 });
 
 const rulesModal = document.getElementById("rulesModal");
-document
-  .getElementById("howToPlayBtn")
-  .addEventListener("click", () => rulesModal.classList.remove("hidden"));
-document
-  .getElementById("closeRulesBtn")
-  .addEventListener("click", () => rulesModal.classList.add("hidden"));
+document.getElementById("howToPlayBtn").addEventListener("click", () => {
+  rulesModal.style.display = "flex";
+  rulesModal.classList.remove("hidden");
+});
+document.getElementById("closeRulesBtn").addEventListener("click", () => {
+  rulesModal.style.display = "none";
+  rulesModal.classList.add("hidden");
+});
 rulesModal.addEventListener("click", (e) => {
-  if (e.target === rulesModal) rulesModal.classList.add("hidden");
+  if (e.target === rulesModal) {
+    rulesModal.style.display = "none";
+    rulesModal.classList.add("hidden");
+  }
 });
 
 window.addEventListener("keydown", (e) => {

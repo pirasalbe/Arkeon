@@ -4,8 +4,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Arkeon - Tactical Hexagonal Laser & Supply Strategy</title>
-  <link rel="stylesheet" href="./style.css?v=5" />
+  <title>Arkeon — Tactical Hexagonal Laser & Supply Strategy</title>
+  <link rel="stylesheet" href="./style.css?v=6" />
 </head>
 
 <body>
@@ -115,8 +115,9 @@
     </aside>
   </main>
 
-  <!-- How to Play Modal -->
-  <div id="rulesModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+  <!-- How to Play Modal (Hidden by default via inline style + CSS class) -->
+  <div id="rulesModal" class="modal-backdrop hidden" style="display: none;" role="dialog" aria-modal="true"
+    aria-labelledby="rulesTitle">
     <div class="modal-card">
       <div class="modal-header">
         <h2 id="rulesTitle">How to Play Arkeon</h2>
@@ -125,38 +126,43 @@
       <div class="modal-body">
         <ol class="rules-list">
           <li>
-            <strong>How to Place or Swap a Piece (3 Easy Steps):</strong>
+            <strong>Turn Actions (Deploy or Upgrade/Downgrade Swap):</strong>
             <ul>
-              <li><strong>Step 1:</strong> Click/tap a unit card in your <em>Unit Arsenal</em>.</li>
-              <li><strong>Step 2:</strong> Click/tap any <strong>green dashed hex</strong> on the board to lock your
-                target hex.</li>
-              <li><strong>Step 3:</strong> Use <strong>Rotate ⟲ / ⟳</strong> (or keys <code>Q</code> / <code>E</code>)
-                to aim your yellow laser beams, then click <strong>Confirm Move ✓</strong> (or click the same hex a
-                second time).</li>
+              <li><strong>Deploy:</strong> Place a unit from your <em>Unit Arsenal</em> onto an empty green hex
+                connected to your supply line.</li>
+              <li><strong>Upgrade / Downgrade (Swap):</strong> Select a <em>different</em> unit type in your Arsenal and
+                click one of your existing units on the board to replace it. (Rotating an existing unit without swapping
+                its type is not allowed.)</li>
             </ul>
           </li>
           <li>
-            <strong>Board Coordinates (`A1`–`E7`) &amp; Move Log:</strong>
-            Every hex has a grid coordinate (`A`–`E` left-to-right, `1`–`7` top-to-bottom). The <strong>Move
-              History</strong> panel logs every placement, laser direction (`N, NE, SE, S, SW, NW`), direct `HIT`, and
-            supply `CUT`. Click <strong>Copy Log</strong> anytime to share a match transcript.
+            <strong>Line of Fire &amp; Counter-Attacks:</strong>
+            You cannot end your placement in the active laser beam of a surviving enemy unit. To place on a hex guarded
+            by an enemy laser, your newly placed unit <strong>must simultaneously destroy</strong> that enemy unit
+            (either by aiming a laser back at it or by severing its supply chain)!
           </li>
           <li>
             <strong>Lasers &amp; Friendly Fire:</strong>
-            Your unit fires lasers into the adjacent hex(es) it points at—destroying <strong>any</strong> unit in those
-            spaces, including your own friendly units!
+            When confirmed, your unit fires lasers into the adjacent hex(es) it points at—destroying
+            <strong>any</strong> unit in those spaces, including your own friendly units!
           </li>
           <li>
             <strong>Supply-Line Rule (Base Connection):</strong>
             Every unit must keep a continuous chain of adjacent friendly units back to its Home Base. Any unit cut off
             from its base (marked with <code>CUT!</code>) is immediately destroyed.
           </li>
+          <li>
+            <strong>5-Unit Advanced Pool &amp; Recycling:</strong>
+            Basic Strikers are infinite. You have <strong>5 Advanced Units</strong>. Downgrading an Advanced unit on the
+            board back into a Basic Striker returns the Advanced piece straight to your hand. Destroyed Advanced units
+            go to your Spent pool; once all 5 are destroyed, all 5 refresh!
+          </li>
         </ol>
       </div>
     </div>
   </div>
 
-  <script src="./index.js?v=5"></script>
+  <script src="./index.js?v=6"></script>
 </body>
 
 </html>
