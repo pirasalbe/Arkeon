@@ -1,7 +1,8 @@
-// Arkeon: Symmetric 31-Hex Board with Strict Guarded-Hex Rule, A1 to E7 Coords & Move History
+// Arkeon: Symmetric 31-Hex Board with Strict Guarded-Hex Rule, Per-Unit Playability & Passive Swap Limit
 
 const HEX_SIZE = 31;
 const SQRT3 = Math.sqrt(3);
+const MAX_PASSIVE_SWAPS = 6; // 3 consecutive passive swaps per player triggers tiebreaker
 
 // 6 Cube Directions (0 = North, clockwise around the hex)
 const DIRECTIONS = [
@@ -133,6 +134,7 @@ let state = {
   mode: "ai",
   turn: "blue",
   turnNumber: 1,
+  passiveSwapStreak: 0,
   showCoords: true,
   winner: null,
   isAnimatingAi: false,
@@ -153,6 +155,7 @@ function initGame() {
   clearAiTimers();
   state.turn = "blue";
   state.turnNumber = 1;
+  state.passiveSwapStreak = 0;
   state.winner = null;
   state.isAnimatingAi = false;
   state.aiPreview = null;
@@ -361,7 +364,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
 
   // RULE 2: STRICT GUARDED HEX RULE.
   // If any enemy unit on the board is already aiming a laser at `targetKey`,
-  // you CANNOT deploy or swap onto `targetKey` at all (not even to shoot back at it).
+  // you CANNOT deploy or swap onto `targetKey` at all.
   const guardingEnemyKey = findTargetingUnitKey(
     state.cells,
     targetKey,
@@ -369,7 +372,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
   );
   if (guardingEnemyKey) {
     return fail(
-      `Blocked: ${labelOf(targetKey)} is guarded by enemy laser at ${labelOf(guardingEnemyKey)}. Flank it from an unguarded hex!`,
+      `Blocked: ${labelOf(targetKey)} is guarded by enemy laser at ${labelOf(guardingEnemyKey)}. Flank it from an unguarded hex.`,
     );
   }
 
@@ -483,38 +486,33 @@ function getHexAvailability(
   return { canPlace: false, reason: currentSim.reason };
 }
 
-function hasAnyLegalMoves(faction) {
-  const candidateTypes = ["basic", ...state.reserves[faction].available];
-  for (const uType of candidateTypes) {
-    for (const [k] of state.cells.entries()) {
-      for (let rot = 0; rot < 6; rot++) {
-        if (simulateMove(faction, uType, rot, k).valid) {
-          return true;
-        }
+// IMPROVEMENT 1 & 3: Check if a specific unitType has at least one valid move anywhere on the board
+function canUnitTypeBeUsed(faction, unitType) {
+  if (
+    unitType !== "basic" &&
+    !state.reserves[faction].available.includes(unitType)
+  ) {
+    return false;
+  }
+  for (const [k] of state.cells.entries()) {
+    for (let rot = 0; rot < 6; rot++) {
+      if (simulateMove(faction, unitType, rot, k).valid) {
+        return true;
       }
     }
   }
   return false;
 }
 
-// Check if a faction has at least one legal DEPLOY (onto an empty hex) or an attack/swap that hits an enemy
-function hasProductiveMove(faction) {
-  const candidateTypes = ["basic", ...state.reserves[faction].available];
-  for (const uType of candidateTypes) {
-    for (const [k] of state.cells.entries()) {
-      for (let rot = 0; rot < 6; rot++) {
-        const sim = simulateMove(faction, uType, rot, k);
-        if (!sim.valid) continue;
-        if (!sim.isSwap) return true;
-        if (sim.hitsEnemyBase) return true;
-        if (sim.directHits.some((h) => h.occupant.faction !== faction))
-          return true;
-        if (sim.cutUnits.some((c) => c.occupant.faction !== faction))
-          return true;
-      }
+// Find the first playable unit type for `faction` (preferring Basic Striker, then available Advanced units)
+function findFirstPlayableUnitType(faction) {
+  const order = ["basic", ...ADVANCED_IDS];
+  for (const uId of order) {
+    if (canUnitTypeBeUsed(faction, uId)) {
+      return uId;
     }
   }
-  return false;
+  return null;
 }
 
 function handleDestroyedUnit(faction, unitType) {
@@ -616,6 +614,14 @@ function commitMove(targetKey, rot, explicitUnitType = null) {
     if (msg) refreshEvents.push(msg);
   }
 
+  // IMPROVEMENT 2: Track consecutive passive swaps (swaps that neither deploy nor destroy any unit)
+  const totalCasualties = sim.directHits.length + sim.cutUnits.length;
+  if (sim.isSwap && totalCasualties === 0 && !sim.hitsEnemyBase) {
+    state.passiveSwapStreak++;
+  } else {
+    state.passiveSwapStreak = 0;
+  }
+
   recordMoveHistory(faction, unitType, rot, targetKey, sim, refreshEvents);
 
   state.cells = sim.simCells;
@@ -650,13 +656,37 @@ function commitMove(targetKey, rot, explicitUnitType = null) {
     return;
   }
 
+  // Check if passive swap limit (6 consecutive non-destructive swaps) has been reached
+  if (state.passiveSwapStreak >= MAX_PASSIVE_SWAPS) {
+    const blueUnits = Array.from(state.cells.values()).filter(
+      (c) => c.occupant && c.occupant.faction === "blue" && !c.occupant.isBase,
+    ).length;
+    const redUnits = Array.from(state.cells.values()).filter(
+      (c) => c.occupant && c.occupant.faction === "red" && !c.occupant.isBase,
+    ).length;
+
+    if (blueUnits === redUnits) {
+      state.winner = "draw";
+      setLog(
+        `${lastLog}. Stalemate limit reached (${MAX_PASSIVE_SWAPS} passive swaps) with equal territory (${blueUnits} vs ${redUnits}). Match ends in a DRAW.`,
+      );
+    } else {
+      state.winner = blueUnits > redUnits ? "blue" : "red";
+      setLog(
+        `${lastLog}. Stalemate limit reached (${MAX_PASSIVE_SWAPS} passive swaps). 🏆 ${state.winner.toUpperCase()} WINS on territory control (${blueUnits} Blue vs ${redUnits} Red units).`,
+      );
+    }
+    renderAll();
+    return;
+  }
+
   // Switch turn to next player
   state.turn = enemyFaction;
-  state.selectedUnitType = "basic";
   state.selectedRotation = state.turn === "blue" ? 0 : 3;
 
-  // Check if next player has any legal moves, or if both players are locked in a mutual wall stalemate
-  if (!hasAnyLegalMoves(state.turn)) {
+  // IMPROVEMENT 1: Find first playable unit for the new turn (auto-selects Advanced unit if Basic Striker has no valid moves)
+  const firstPlayable = findFirstPlayableUnitType(state.turn);
+  if (!firstPlayable) {
     state.winner = faction;
     setLog(
       `${lastLog}. 🏆 ${faction.toUpperCase()} WINS because ${enemyFaction.toUpperCase()} has no legal moves remaining.`,
@@ -665,22 +695,18 @@ function commitMove(targetKey, rot, explicitUnitType = null) {
     return;
   }
 
-  if (!hasProductiveMove("blue") && !hasProductiveMove("red")) {
-    const blueUnits = Array.from(state.cells.values()).filter(
-      (c) => c.occupant && c.occupant.faction === "blue" && !c.occupant.isBase,
-    ).length;
-    const redUnits = Array.from(state.cells.values()).filter(
-      (c) => c.occupant && c.occupant.faction === "red" && !c.occupant.isBase,
-    ).length;
-    state.winner = blueUnits >= redUnits ? "blue" : "red";
-    setLog(
-      `${lastLog}. Mutual laser blockade reached! ${state.winner.toUpperCase()} wins on territory control (${blueUnits} Blue vs ${redUnits} Red units).`,
-    );
-    renderAll();
-    return;
-  }
+  state.selectedUnitType = firstPlayable;
 
-  setLog(lastLog);
+  if (
+    firstPlayable !== "basic" &&
+    (state.mode === "pvp" || state.turn === "blue")
+  ) {
+    setLog(
+      `${lastLog}. Basic Striker has no valid moves for ${state.turn.toUpperCase()}: auto-selected ${UNIT_TYPES[firstPlayable].name} to upgrade a unit on the board.`,
+    );
+  } else {
+    setLog(lastLog);
+  }
 
   if (state.mode === "ai" && state.turn === "red" && !state.winner) {
     state.isAnimatingAi = true;
@@ -716,10 +742,8 @@ function runAiTurn() {
         for (const c of sim.cutUnits)
           score += c.occupant.faction === "blue" ? 65 : -55;
 
-        // Reward advancing toward Blue HQ
         score += (cell.z - cell.y) * 3;
 
-        // Avoid pointless swaps that don't hit an enemy
         if (sim.isSwap && sim.directHits.length === 0 && !sim.hitsEnemyBase) {
           score -= 35;
         }
@@ -815,7 +839,10 @@ function renderTurnBanner() {
   banner.className = `turn-banner ${state.turn === "red" ? "red-turn" : "blue-turn"}`;
 
   if (state.winner) {
-    title.textContent = `🏆 ${state.winner.toUpperCase()} VICTORY!`;
+    title.textContent =
+      state.winner === "draw"
+        ? "🤝 STALEMATE DRAW!"
+        : `🏆 ${state.winner.toUpperCase()} VICTORY!`;
     hint.textContent = "Click 'New Match' in the top bar to play again.";
     return;
   }
@@ -828,7 +855,7 @@ function renderTurnBanner() {
 
   title.textContent = `${state.turn.toUpperCase()} COMMANDER'S TURN`;
   hint.textContent = !state.stagedHexKey
-    ? "Step 1: Pick a unit card. Step 2: Click or tap any green dashed hex on the board."
+    ? "Step 1: Pick an enabled unit card. Step 2: Click or tap any green dashed hex on the board."
     : `Locked on ${labelOf(state.stagedHexKey)}. Use Rotate ⟲ / ⟳ to aim, then click 'Confirm Move ✓'.`;
 }
 
@@ -861,6 +888,13 @@ function renderScoreboard() {
     `Spent Adv (${state.reserves.red.spent.length}/5): ${redSpent || "None"}`;
   document.getElementById("redFactionLabel").textContent =
     state.mode === "ai" ? "Red Faction (AI)" : "Red Faction (Player 2)";
+
+  const swapEl = document.getElementById("passiveSwapCount");
+  const stalemateBox = document.getElementById("stalemateBox");
+  if (swapEl && stalemateBox) {
+    swapEl.textContent = `${state.passiveSwapStreak} / ${MAX_PASSIVE_SWAPS}`;
+    stalemateBox.classList.toggle("warning", state.passiveSwapStreak >= 4);
+  }
 }
 
 function createMiniUnitSvg(unitId, faction) {
@@ -885,6 +919,7 @@ function createMiniUnitSvg(unitId, faction) {
   `;
 }
 
+// IMPROVEMENT 3: Disable any unit card that is either Spent OR currently has zero legal moves on the board
 function renderUnitDock() {
   const dock = document.getElementById("unitDock");
   dock.innerHTML = "";
@@ -894,20 +929,32 @@ function renderUnitDock() {
   const availableAdv = state.reserves[displayFaction].available;
 
   Object.values(UNIT_TYPES).forEach((u) => {
-    const isAvailable = !u.isAdvanced || availableAdv.includes(u.id);
-    const isSelected = state.selectedUnitType === u.id;
+    const inReserve = !u.isAdvanced || availableAdv.includes(u.id);
+    const hasLegalMove =
+      inReserve && !isAiTurn
+        ? canUnitTypeBeUsed(displayFaction, u.id)
+        : inReserve;
+    const isUsable =
+      inReserve &&
+      hasLegalMove &&
+      !state.winner &&
+      !isAiTurn &&
+      !state.isAnimatingAi;
+    const isSelected = state.selectedUnitType === u.id && isUsable;
 
     const card = document.createElement("button");
     card.type = "button";
-    card.className = `unit-card ${isSelected ? "selected" : ""} ${!isAvailable ? "disabled" : ""}`;
-    card.disabled =
-      !isAvailable || Boolean(state.winner) || isAiTurn || state.isAnimatingAi;
+    card.className = `unit-card ${isSelected ? "selected" : ""} ${!isUsable ? "disabled" : ""}`;
+    card.disabled = !isUsable;
 
-    const statusLabel = !u.isAdvanced
-      ? "∞ Supply"
-      : isAvailable
-        ? "Ready"
-        : "Spent";
+    let statusLabel = "Ready";
+    if (!inReserve) {
+      statusLabel = "Spent";
+    } else if (!hasLegalMove && !isAiTurn) {
+      statusLabel = "No Valid Moves";
+    } else if (!u.isAdvanced) {
+      statusLabel = "∞ Supply";
+    }
 
     card.innerHTML = `
       ${createMiniUnitSvg(u.id, displayFaction)}
@@ -916,8 +963,7 @@ function renderUnitDock() {
     `;
 
     card.addEventListener("click", () => {
-      if (!isAvailable || state.winner || isAiTurn || state.isAnimatingAi)
-        return;
+      if (!isUsable) return;
       state.selectedUnitType = u.id;
       if (state.stagedHexKey) {
         const check = getHexAvailability(state.stagedHexKey);
