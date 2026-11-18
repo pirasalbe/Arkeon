@@ -1505,7 +1505,7 @@ function renderBoard() {
   if (activeSim && previewKey) {
     const srcCell = state.cells.get(previewKey);
     const { x: sx, y: sy } = cubeToPixel(srcCell.x, srcCell.y, srcCell.z);
-    const beamColor = activeSim.valid ? "#facc15" : "#ef4444";
+    const beamColor = activeSim.valid ? "#facc15" : "#fb923c";
     for (const targetKey of activeSim.laserTargetKeys) {
       const tCell = state.cells.get(targetKey);
       const { x: tx, y: ty } = cubeToPixel(tCell.x, tCell.y, tCell.z);
@@ -1520,20 +1520,21 @@ function renderBoard() {
       beam.setAttribute("y2", ty);
       beam.setAttribute("stroke", beamColor);
       beam.setAttribute("stroke-width", "4");
-      beam.setAttribute("stroke-dasharray", "6 4");
+      beam.setAttribute("stroke-dasharray", activeSim.valid ? "6 4" : "3 5");
+      beam.setAttribute("opacity", activeSim.valid ? "1" : "0.65");
       beam.setAttribute("pointer-events", "none");
       svg.appendChild(beam);
+    }
+    if (!activeSim.valid) {
+      drawBadge(svg, sx, sy - 18, "NO AIM", "#64748b");
     }
   }
 }
 
 function drawOccupant(group, cx, cy, occ) {
   const baseColor = occ.faction === "blue" ? "#38bdf8" : "#f43f5e";
-  const pieceColor = occ.isGhost
-    ? occ.isInvalidGhost
-      ? "#ef4444"
-      : "#facc15"
-    : baseColor;
+  const pieceColor = occ.isGhost ? "#facc15" : baseColor;
+  const ghostOpacity = occ.isGhost && occ.isInvalidGhost ? "0.42" : "1";
 
   if (occ.isBase) {
     const baseRing = document.createElementNS(
@@ -1583,6 +1584,7 @@ function drawOccupant(group, cx, cy, occ) {
       ray.setAttribute("stroke", pieceColor);
       ray.setAttribute("stroke-width", "3.5");
       ray.setAttribute("stroke-linecap", "round");
+      ray.setAttribute("opacity", ghostOpacity);
       ray.setAttribute("pointer-events", "none");
       group.appendChild(ray);
     }
@@ -1595,8 +1597,9 @@ function drawOccupant(group, cx, cy, occ) {
     body.setAttribute("cy", cy);
     body.setAttribute("r", occ.type === "basic" ? 9.5 : 12.5);
     body.setAttribute("fill", pieceColor);
-    body.setAttribute("stroke", "#0b101b");
+    body.setAttribute("stroke", occ.faction === "blue" ? "#0284c7" : "#e11d48");
     body.setAttribute("stroke-width", "2.5");
+    body.setAttribute("opacity", ghostOpacity);
     body.setAttribute("pointer-events", "none");
     group.appendChild(body);
   } else {
@@ -1610,6 +1613,7 @@ function drawOccupant(group, cx, cy, occ) {
     body.setAttribute("fill", "#0f172a");
     body.setAttribute("stroke", pieceColor);
     body.setAttribute("stroke-width", "3");
+    body.setAttribute("opacity", ghostOpacity);
     body.setAttribute("pointer-events", "none");
     group.appendChild(body);
 
@@ -1626,6 +1630,7 @@ function drawOccupant(group, cx, cy, occ) {
     sym.setAttribute("fill", "#facc15");
     sym.setAttribute("font-size", "14");
     sym.setAttribute("font-weight", "800");
+    sym.setAttribute("opacity", ghostOpacity);
     sym.setAttribute("pointer-events", "none");
     sym.textContent = symbolMap[spec?.special] || "★";
     group.appendChild(sym);
