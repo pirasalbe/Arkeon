@@ -423,17 +423,18 @@ function simulateMove(faction, unitType, rot, targetKey) {
     );
   }
 
-  if (spec.isAggressive) {
-    const guardingEnemyKey = findTargetingUnitKey(
-      state.cells,
-      targetKey,
-      enemyFaction,
+  // STRICT GUARDED HEX RULE (Applies to ALL units, both Aggressive and Non-Aggressive):
+  // "On ne peut pas poser un pion sur une case où il serait immédiatement détruit."
+  // You cannot deploy or swap ANY unit onto a hex that is currently aimed at by an enemy laser!
+  const guardingEnemyKey = findTargetingUnitKey(
+    state.cells,
+    targetKey,
+    enemyFaction,
+  );
+  if (guardingEnemyKey) {
+    return fail(
+      `Blocked: ${labelOf(targetKey)} is in the line of fire of enemy laser at ${labelOf(guardingEnemyKey)}.`,
     );
-    if (guardingEnemyKey) {
-      return fail(
-        `Blocked: ${labelOf(targetKey)} is guarded by enemy laser at ${labelOf(guardingEnemyKey)}. Use a Manipulator (Rotator, Pacifier, or Repulsor) or flank it.`,
-      );
-    }
   }
 
   const simCells = cloneCells(state.cells);
@@ -475,7 +476,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
       } else if (spec.special === "ccw") {
         occ.rot = (occ.rot + 5) % 6;
       } else if (spec.special === "pacify") {
-        // Turn the unit's back toward the Pacifier (face outward in direction `dir`)
         occ.rot = dir;
       }
 
@@ -492,11 +492,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
       }
     }
   } else if (spec.special === "repulse") {
-    // Official Repulsor Rule:
-    // "Il repousse tous les pions (y compris les siens et les bases) dans les 6 directions
-    //  jusqu'à ce qu'ils rencontrent un obstacle infranchissable."
-    // Along each of the 6 rays starting from targetCell, if there is an adjacent piece (or pieces on the ray),
-    // slide pieces outward away from the Repulsor all the way until they hit the board edge or another piece!
     for (let dir = 0; dir < 6; dir++) {
       const rayKeys = [];
       let cx = targetCell.x + DIRECTIONS[dir].dx;
@@ -510,8 +505,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
         cz += DIRECTIONS[dir].dz;
       }
 
-      // Slide units from the farthest index (near the board edge) inward so each unit slides
-      // outward all the way to the farthest unobstructed hex along the ray!
       for (let i = rayKeys.length - 2; i >= 0; i--) {
         const srcKey = rayKeys[i];
         const srcCell = simCells.get(srcKey);
@@ -622,27 +615,28 @@ function simulateMove(faction, unitType, rot, targetKey) {
   }
 
   // =========================================================================
-  // STEP 3: Remove Isolated Enemy Units
+  // STEP 3: Remove Isolated Enemy Units (and any friendly units cut by friendly fire in Step 2)
   // =========================================================================
   removeDisconnectedFactionUnits(enemyFaction);
+  removeDisconnectedFactionUnits(faction);
 
   if (!hitsEnemyBase) {
     // =======================================================================
-    // STEP 4: Resolve Opponent's Triggered Attacks (from rotated/pushed units)
+    // STEP 4: Resolve Opponent's Triggered Attacks (from surviving rotated/pushed units)
     // =======================================================================
     resolveFactionAttacks(enemyAttackerKeys, enemyFaction);
     if (hitsOwnBase) {
       return fail(
-        "Illegal move: rotated or pushed unit would strike your own Home Base.",
+        "Illegal move: rotated or pushed enemy unit would strike your own Home Base.",
       );
     }
 
     // =======================================================================
-    // STEP 5: Remove Isolated Active Player Units
+    // STEP 5: Remove All Isolated Units for BOTH Factions after Step 4!
+    // (Fixes Bug #1 where an enemy unit shooting its own teammate in Step 4 left floating enemy islands!)
     // =======================================================================
     removeDisconnectedFactionUnits(faction);
-  } else {
-    removeDisconnectedFactionUnits(faction);
+    removeDisconnectedFactionUnits(enemyFaction);
   }
 
   // Verify the newly placed unit at `targetKey` survived all 5 steps and is still connected
@@ -660,12 +654,12 @@ function simulateMove(faction, unitType, rot, targetKey) {
     };
   }
 
-  // Also ensure no surviving enemy unit is still aiming at `targetKey` at the end of the turn
+  // Also ensure no surviving enemy unit is aiming at `targetKey` at the end of the turn
   const finalGuardKey = findTargetingUnitKey(simCells, targetKey, enemyFaction);
   if (finalGuardKey) {
     return {
       valid: false,
-      reason: `Illegal move: ${labelOf(targetKey)} remains in the line of fire of enemy at ${labelOf(finalGuardKey)}.`,
+      reason: `Illegal move: ${labelOf(targetKey)} would end the turn in the laser beam of enemy at ${labelOf(finalGuardKey)}.`,
       laserDirs,
       laserTargetKeys,
       directHits,
