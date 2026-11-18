@@ -425,7 +425,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
 
   // STRICT GUARDED HEX RULE (Applies to ALL units, both Aggressive and Non-Aggressive):
   // "On ne peut pas poser un pion sur une case où il serait immédiatement détruit."
-  // You cannot deploy or swap ANY unit onto a hex that is currently aimed at by an enemy laser!
   const guardingEnemyKey = findTargetingUnitKey(
     state.cells,
     targetKey,
@@ -615,10 +614,9 @@ function simulateMove(faction, unitType, rot, targetKey) {
   }
 
   // =========================================================================
-  // STEP 3: Remove Isolated Enemy Units (and any friendly units cut by friendly fire in Step 2)
+  // STEP 3: Remove Isolated Enemy Units
   // =========================================================================
   removeDisconnectedFactionUnits(enemyFaction);
-  removeDisconnectedFactionUnits(faction);
 
   if (!hitsEnemyBase) {
     // =======================================================================
@@ -632,11 +630,12 @@ function simulateMove(faction, unitType, rot, targetKey) {
     }
 
     // =======================================================================
-    // STEP 5: Remove All Isolated Units for BOTH Factions after Step 4!
-    // (Fixes Bug #1 where an enemy unit shooting its own teammate in Step 4 left floating enemy islands!)
+    // STEP 5: Remove All Isolated Units for Both Factions
     // =======================================================================
     removeDisconnectedFactionUnits(faction);
     removeDisconnectedFactionUnits(enemyFaction);
+  } else {
+    removeDisconnectedFactionUnits(faction);
   }
 
   // Verify the newly placed unit at `targetKey` survived all 5 steps and is still connected
@@ -654,7 +653,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     };
   }
 
-  // Also ensure no surviving enemy unit is aiming at `targetKey` at the end of the turn
+  // Ensure no surviving enemy unit is aiming at `targetKey` at the end of the turn
   const finalGuardKey = findTargetingUnitKey(simCells, targetKey, enemyFaction);
   if (finalGuardKey) {
     return {
