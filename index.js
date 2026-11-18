@@ -1,5 +1,5 @@
 // Arkeon: Authentic 5 Advanced Units (Triple Striker, CW Rotator, CCW Rotator, Pacifier, Repulsor)
-// Based on Dominique Breton's official rules on Tric Trac (https://trictrac.net/jeu-de-societe/arkeon)
+// Game by Dominique Breton (https://www.facebook.com/ZeBlate), implemented by Alberto Piras (https://github.com/pirasalbe/Arkeon)
 
 const HEX_SIZE = 31;
 const SQRT3 = Math.sqrt(3);
@@ -15,7 +15,6 @@ const DIRECTIONS = [
   { dx: -1, dy: 1, dz: 0, angleDeg: -150, Compass: "NW" }, // 5: North-West
 ];
 
-// Authentic Unit Definitions from Tric Trac Rulebook
 const UNIT_TYPES = {
   basic: {
     id: "basic",
@@ -236,7 +235,7 @@ function initGame() {
   state.hoverHexKey = null;
 
   setLog(
-    "Match initialized with authentic Tric Trac rules: Triple Striker, CW/CCW Rotators, Pacifier, and Repulsor!",
+    "Match initialized. Deploy onto an empty green hex, or pick an Advanced unit to upgrade one of your pieces.",
   );
   renderAll();
 }
@@ -254,7 +253,6 @@ function cloneCells(cellsMap) {
   return copy;
 }
 
-// Find current coordinate key of a faction's Home Base (since Repulsor can push bases!)
 function findBaseKey(cellsMap, faction) {
   for (const [k, cell] of cellsMap.entries()) {
     if (
@@ -287,7 +285,6 @@ function getActiveLaserDirs(unitType, rot) {
   return spec.lasers.map((d) => (d + rot) % 6);
 }
 
-// Returns the key of any unit of `attackerFaction` on `cellsMap` currently aiming a laser at `targetKey`
 function findTargetingUnitKey(cellsMap, targetKey, attackerFaction) {
   for (const [k, cell] of cellsMap.entries()) {
     const occ = cell.occupant;
@@ -411,8 +408,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
   const enemyFaction = faction === "blue" ? "red" : "blue";
   const initialEnemyBaseKey = findBaseKey(state.cells, enemyFaction);
 
-  // Rule: You cannot place a unit adjacent to the Enemy Base unless it attacks the Enemy Base
-  // (or is a Repulsor that pushes the Enemy Base away).
   const isAdjacentToEnemyBase = getNeighbors(
     targetCell.x,
     targetCell.y,
@@ -428,9 +423,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
     );
   }
 
-  // Rule: For Aggressive units (Basic & Triple Striker), you CANNOT step into an active enemy laser.
-  // For Non-Aggressive Manipulators (Rotators, Pacifier, Repulsor), Step 1 resolves their rotation/push FIRST,
-  // so they CAN step in front of an enemy laser if their Step 1 effect turns or pushes that laser away!
   if (spec.isAggressive) {
     const guardingEnemyKey = findTargetingUnitKey(
       state.cells,
@@ -439,7 +431,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     );
     if (guardingEnemyKey) {
       return fail(
-        `Blocked: ${labelOf(targetKey)} is guarded by enemy laser at ${labelOf(guardingEnemyKey)}. Use a Manipulator (Rotator, Pacifier, or Repulsor) or flank it!`,
+        `Blocked: ${labelOf(targetKey)} is guarded by enemy laser at ${labelOf(guardingEnemyKey)}. Use a Manipulator (Rotator, Pacifier, or Repulsor) or flank it.`,
       );
     }
   }
@@ -477,6 +469,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
       const occ = nCell.occupant;
       if (!occ || occ.isBase || !UNIT_TYPES[occ.type]?.isAggressive) continue;
 
+      const oldRot = occ.rot;
       if (spec.special === "cw") {
         occ.rot = (occ.rot + 1) % 6;
       } else if (spec.special === "ccw") {
@@ -486,18 +479,24 @@ function simulateMove(faction, unitType, rot, targetKey) {
         occ.rot = dir;
       }
 
-      manipulatedKeys.push({
-        key: nKey,
-        tag: spec.special === "pacify" ? "PAC!" : "ROT!",
-      });
-      if (occ.faction === faction) {
-        activeAttackerKeys.add(nKey);
-      } else {
-        enemyAttackerKeys.add(nKey);
+      if (occ.rot !== oldRot) {
+        manipulatedKeys.push({
+          key: nKey,
+          tag: spec.special === "pacify" ? "PAC!" : "ROT!",
+        });
+        if (occ.faction === faction) {
+          activeAttackerKeys.add(nKey);
+        } else {
+          enemyAttackerKeys.add(nKey);
+        }
       }
     }
   } else if (spec.special === "repulse") {
-    // Push all units (including bases) along the 6 axes away from targetCell until hitting an immovable obstacle
+    // Official Repulsor Rule:
+    // "Il repousse tous les pions (y compris les siens et les bases) dans les 6 directions
+    //  jusqu'à ce qu'ils rencontrent un obstacle infranchissable."
+    // Along each of the 6 rays starting from targetCell, if there is an adjacent piece (or pieces on the ray),
+    // slide pieces outward away from the Repulsor all the way until they hit the board edge or another piece!
     for (let dir = 0; dir < 6; dir++) {
       const rayKeys = [];
       let cx = targetCell.x + DIRECTIONS[dir].dx;
@@ -511,18 +510,28 @@ function simulateMove(faction, unitType, rot, targetKey) {
         cz += DIRECTIONS[dir].dz;
       }
 
-      // Work from the farthest hex on the ray inward toward the Repulsor:
-      // any unit with an empty hex immediately behind it on the ray shifts 1 hex outward
-      for (let i = rayKeys.length - 1; i >= 1; i--) {
-        const destKey = rayKeys[i];
-        const srcKey = rayKeys[i - 1];
-        const destCell = simCells.get(destKey);
+      // Slide units from the farthest index (near the board edge) inward so each unit slides
+      // outward all the way to the farthest unobstructed hex along the ray!
+      for (let i = rayKeys.length - 2; i >= 0; i--) {
+        const srcKey = rayKeys[i];
         const srcCell = simCells.get(srcKey);
+        if (!srcCell.occupant) continue;
 
-        if (!destCell.occupant && srcCell.occupant) {
+        let farthestEmptyIdx = i;
+        while (
+          farthestEmptyIdx + 1 < rayKeys.length &&
+          !simCells.get(rayKeys[farthestEmptyIdx + 1]).occupant
+        ) {
+          farthestEmptyIdx++;
+        }
+
+        if (farthestEmptyIdx !== i) {
+          const destKey = rayKeys[farthestEmptyIdx];
+          const destCell = simCells.get(destKey);
           destCell.occupant = srcCell.occupant;
           srcCell.occupant = null;
-          manipulatedKeys.push({ key: destKey, tag: "PUSH!" });
+
+          manipulatedKeys.push({ key: destKey, fromKey: srcKey, tag: "PUSH!" });
 
           if (
             !destCell.occupant.isBase &&
@@ -539,23 +548,11 @@ function simulateMove(faction, unitType, rot, targetKey) {
     }
   }
 
-  // If a Manipulator was placed in front of an enemy laser and DID NOT turn/push that laser away, it is illegal
-  const postManipGuardKey = findTargetingUnitKey(
-    simCells,
-    targetKey,
-    enemyFaction,
-  );
-  if (postManipGuardKey && !activeAttackerKeys.has(targetKey)) {
-    // Check if our own Step 2 attacks will kill that guard before Step 4
-    // (Wait: Step 2 happens before Step 4, so let Step 2 run first, then check if targetKey survives Step 4!)
-  }
-
   const directHits = [];
   const cutUnits = [];
   let hitsEnemyBase = false;
   let hitsOwnBase = false;
 
-  // Helper to fire lasers from a set of attacker keys belonging to `firingFaction`
   function resolveFactionAttacks(attackerKeySet, firingFaction) {
     const oppFaction = firingFaction === "blue" ? "red" : "blue";
     const oppBaseKey = findBaseKey(simCells, oppFaction);
@@ -603,7 +600,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
     }
   }
 
-  // Helper to remove disconnected units of `checkFaction`
   function removeDisconnectedFactionUnits(checkFaction) {
     const connected = findConnectedKeys(simCells, checkFaction);
     for (const [k, cell] of simCells.entries()) {
@@ -621,7 +617,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
   resolveFactionAttacks(activeAttackerKeys, faction);
   if (hitsOwnBase) {
     return fail(
-      "Illegal move: this action would fire a laser at your own Home Base!",
+      "Illegal move: this action would fire a laser at your own Home Base.",
     );
   }
 
@@ -630,7 +626,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
   // =========================================================================
   removeDisconnectedFactionUnits(enemyFaction);
 
-  // If the Enemy Base was already hit in Step 2, the active player wins before Step 4!
   if (!hitsEnemyBase) {
     // =======================================================================
     // STEP 4: Resolve Opponent's Triggered Attacks (from rotated/pushed units)
@@ -638,7 +633,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     resolveFactionAttacks(enemyAttackerKeys, enemyFaction);
     if (hitsOwnBase) {
       return fail(
-        "Illegal move: rotated/pushed unit would strike your own Home Base!",
+        "Illegal move: rotated or pushed unit would strike your own Home Base.",
       );
     }
 
@@ -647,17 +642,16 @@ function simulateMove(faction, unitType, rot, targetKey) {
     // =======================================================================
     removeDisconnectedFactionUnits(faction);
   } else {
-    // Still verify active player's own supply line in case of friendly fire during base strike
     removeDisconnectedFactionUnits(faction);
   }
 
-  // Verify the newly placed unit at `targetKey` survived all 5 steps and is still connected!
+  // Verify the newly placed unit at `targetKey` survived all 5 steps and is still connected
   const finalPlacedOcc = simCells.get(targetKey)?.occupant;
   if (!finalPlacedOcc || finalPlacedOcc.faction !== faction) {
     return {
       valid: false,
       reason:
-        "Illegal move: unit would be destroyed or disconnected from your Home Base!",
+        "Illegal move: unit would be destroyed or disconnected from your Home Base.",
       laserDirs,
       laserTargetKeys,
       directHits,
@@ -671,7 +665,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
   if (finalGuardKey) {
     return {
       valid: false,
-      reason: `Illegal move: ${labelOf(targetKey)} remains in the line of fire of enemy at ${labelOf(finalGuardKey)}!`,
+      reason: `Illegal move: ${labelOf(targetKey)} remains in the line of fire of enemy at ${labelOf(finalGuardKey)}.`,
       laserDirs,
       laserTargetKeys,
       directHits,
@@ -776,8 +770,10 @@ function recordMoveHistory(
     ? `aim ${sim.laserDirs.map((d) => DIRECTIONS[d].Compass).join(",")} to ${sim.laserTargetKeys.map((k) => labelOf(k)).join(",")}`
     : `effect: ${spec.short}`;
 
-  const fxCoords = sim.manipulatedKeys.map(
-    (m) => `${labelOf(m.key)}(${m.tag.replace("!", "")})`,
+  const fxCoords = sim.manipulatedKeys.map((m) =>
+    m.fromKey
+      ? `${labelOf(m.fromKey)}->${labelOf(m.key)}`
+      : `${labelOf(m.key)}(${m.tag.replace("!", "")})`,
   );
   const hitCoords = sim.directHits.map(
     (h) => `${labelOf(h.key)}(${h.occupant.faction[0].toUpperCase()})`,
@@ -1341,8 +1337,6 @@ function renderBoard() {
     activeSim ? activeSim.manipulatedKeys.map((m) => [m.key, m.tag]) : [],
   );
 
-  // When previewing a valid move (especially Rotators, Pacifiers, or Repulsors),
-  // show the resulting post-Step-1 positions/orientations on the board so the player can see the chain reaction!
   const displayCells =
     activeSim && activeSim.valid ? activeSim.simCells : state.cells;
 
@@ -1459,12 +1453,11 @@ function renderBoard() {
         isGhost: true,
         isInvalidGhost: !activeSim.valid,
       };
-    } else if (
-      (hitKeySet.has(key) || cutKeySet.has(key)) &&
-      state.cells.get(key)?.occupant
-    ) {
-      // Keep destroyed unit visible underneath the HIT! / CUT! badge during preview
-      occToDraw = state.cells.get(key).occupant;
+    } else if (hitKeySet.has(key) || cutKeySet.has(key)) {
+      const hitEntry =
+        activeSim.directHits.find((h) => h.key === key) ||
+        activeSim.cutUnits.find((c) => c.key === key);
+      if (hitEntry) occToDraw = hitEntry.occupant;
     }
 
     if (occToDraw) drawOccupant(g, x, y, occToDraw);
@@ -1614,7 +1607,6 @@ function drawOccupant(group, cx, cy, occ) {
     body.setAttribute("pointer-events", "none");
     group.appendChild(body);
   } else {
-    // Non-Aggressive Manipulator Unit (CW, CCW, Pacifier, Repulsor)
     const body = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "circle",

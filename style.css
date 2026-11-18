@@ -67,6 +67,17 @@ body {
 .subtitle {
   font-size: 0.75rem;
   color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.subtitle a {
+  color: var(--blue-main);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.subtitle a:hover {
+  text-decoration: underline;
 }
 
 .top-controls {
@@ -649,7 +660,7 @@ body {
   }
 
   .subtitle {
-    display: none;
+    font-size: 0.68rem;
   }
 
   .unit-dock {
