@@ -350,6 +350,11 @@ body {
   font-weight: 700;
 }
 
+.history-item .fx-pill {
+  color: #a78bfa;
+  font-weight: 700;
+}
+
 .board-section {
   display: flex;
   flex-direction: column;
@@ -433,6 +438,11 @@ body {
   border-color: #334155;
 }
 
+.btn-tool:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .btn-confirm {
   background: var(--valid-green);
   color: #042f16;
@@ -513,13 +523,13 @@ body {
 }
 
 .unit-name {
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: #ffffff;
 }
 
 .unit-tag {
-  font-size: 0.68rem;
+  font-size: 0.67rem;
   padding: 0.15rem 0.45rem;
   border-radius: 999px;
   background: #1e293b;
@@ -563,7 +573,7 @@ body {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   border-radius: 16px;
-  max-width: 640px;
+  max-width: 650px;
   width: 100%;
   max-height: 88vh;
   overflow-y: auto;
@@ -593,7 +603,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
-  font-size: 0.86rem;
+  font-size: 0.85rem;
   line-height: 1.45;
 }
 

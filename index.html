@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Arkeon: Tactical Hexagonal Laser & Supply Strategy</title>
-  <link rel="stylesheet" href="./style.css?v=11" />
+  <link rel="stylesheet" href="./style.css?v=12" />
 </head>
 
 <body>
@@ -14,7 +14,7 @@
       <span class="brand-hex">⬢</span>
       <div>
         <h1>ARKEON</h1>
-        <p class="subtitle">Tactical Hex Supply &amp; Laser Strategy</p>
+        <p class="subtitle">Tactical Hex Supply &amp; Chain-Reaction Strategy</p>
       </div>
     </div>
 
@@ -69,7 +69,7 @@
 
         <div id="stalemateBox" class="stalemate-bar">
           <span>Passive Swaps: <strong id="passiveSwapCount">0 / 6</strong></span>
-          <span class="stalemate-sub">Resets on deploy or enemy hit</span>
+          <span class="stalemate-sub">Resets on deploy, hit, or push</span>
         </div>
       </div>
 
@@ -125,7 +125,7 @@
     aria-labelledby="rulesTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <h2 id="rulesTitle">How to Play Arkeon: Complete Rules</h2>
+        <h2 id="rulesTitle">How to Play Arkeon: Official Rules</h2>
         <button id="closeRulesBtn" class="btn-close" type="button" aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
@@ -134,83 +134,73 @@
             <strong>How to Make a Move (3 Steps):</strong>
             <ul>
               <li><strong>Step 1:</strong> Select an enabled unit card from your <em>Unit Arsenal</em>. Any unit that
-                currently has zero legal moves on the board is automatically disabled and marked
-                <code>No Valid Moves</code>.</li>
+                currently has zero legal moves on the board is disabled and marked <code>No Valid Moves</code>.</li>
               <li><strong>Step 2:</strong> Click or tap any <strong>green dashed hex</strong> on the board to lock your
-                target hex and preview your yellow laser beams.</li>
-              <li><strong>Step 3:</strong> Use <strong>Rotate ⟲ / ⟳</strong> (or press <code>Q</code> and
-                <code>E</code>) to aim your lasers, then click <strong>Confirm Move ✓</strong> (or click the same hex a
-                second time).</li>
+                target hex and preview the board outcome (`HIT!`, `CUT!`, `ROT`, or `PUSH`).</li>
+              <li><strong>Step 3:</strong> For directional units (Basic Striker and Triple Striker), use <strong>Rotate
+                  ⟲ / ⟳</strong> (or press <code>Q</code> and <code>E</code>) to aim, then click <strong>Confirm Move
+                  ✓</strong> (or click the same hex a second time).</li>
             </ul>
           </li>
           <li>
             <strong>Turn Actions (Deploy vs. Replace / Swap Units):</strong>
             <ul>
               <li><strong>Deploy a New Unit:</strong> Place a unit from your reserve onto an empty green hex adjacent to
-                at least one of your existing units.</li>
+                at least one of your existing connected units.</li>
               <li><strong>Upgrade a Unit:</strong> Select an Advanced unit in your Arsenal, then click one of your
-                existing Basic Strikers on the board to replace it. The Basic Striker returns to your infinite supply.
-              </li>
+                existing Basic Strikers on the board to replace it.</li>
               <li><strong>Downgrade a Unit:</strong> Select the Basic Striker in your Arsenal, then click one of your
                 existing Advanced units on the board to replace it. The removed Advanced unit returns directly to your
                 available hand so you can redeploy it elsewhere on a later turn.</li>
-              <li><strong>Swap Advanced Units:</strong> You can also replace an Advanced unit on the board with a
-                <em>different</em> Advanced unit from your reserve, returning the previous one to your hand.</li>
-              <li><strong>No In-Place Rotation:</strong> You cannot spend a turn simply rotating a unit already on the
-                board; you must replace it with a different unit type.</li>
+              <li><strong>Swap Advanced Units:</strong> Replace an Advanced unit on the board with a <em>different</em>
+                Advanced unit from your reserve, returning the previous one to your hand.</li>
             </ul>
           </li>
           <li>
-            <strong>When Do You Get Spent / Cut Advanced Units Back?</strong>
+            <strong>The Authentic Unit Arsenal (1 Basic + 5 Advanced Units):</strong>
             <ul>
-              <li><strong>Basic Striker (Infinite Supply):</strong> Fires 1 laser beam. Destroyed Basic Strikers are
-                always reusable.</li>
-              <li><strong>5 Advanced Units:</strong> Spear V, Wide Fork, Lancer Line, Trident Fan, and Tri-Star.</li>
-              <li><strong>Destroyed or Cut Units Go to Spent Pool:</strong> When an Advanced unit is destroyed on the
-                board (either by a direct laser <code>HIT!</code> or isolated by a supply-line <code>CUT!</code>), it is
-                marked as <strong>Spent</strong> and cannot be used until your pool refreshes.</li>
-              <li><strong>All-5 Refresh Rule:</strong> Once <strong>all 5</strong> of your Advanced units have been
-                destroyed or cut (<code>5/5 Spent</code>), all 5 immediately refresh and return to your available hand
-                at the same time. (Tip: To reuse an Advanced unit without waiting for all 5 to die, <em>downgrade</em>
-                it to a Basic Striker on your turn before the enemy destroys it.)</li>
+              <li><strong>Basic Striker (`∞` Supply, Aggressive):</strong> Attacks the 1 hex it points at.</li>
+              <li><strong>Triple Striker (`Le triple attaque`, Aggressive):</strong> Attacks the 3 forward hexes it
+                points at simultaneously.</li>
+              <li><strong>Clockwise Rotator (`Tournicoteur horaire`, Non-Aggressive):</strong> Forces all adjacent
+                aggressive units (both enemy and friendly) to pivot 60 degrees clockwise.</li>
+              <li><strong>CCW Rotator (`Tournicoteur anti-horaire`, Non-Aggressive):</strong> Forces all adjacent
+                aggressive units (both enemy and friendly) to pivot 60 degrees counter-clockwise.</li>
+              <li><strong>Pacifier (`Le pacificateur`, Non-Aggressive):</strong> Pacifies all adjacent aggressive units
+                (both enemy and friendly) by forcing them to pivot so their lasers point directly away from the
+                Pacifier.</li>
+              <li><strong>Repulsor (`Le répulseur`, Non-Aggressive):</strong> Pushes all units (including friendly units
+                and Home Bases) outward by 1 space along all 6 hexagonal axes until they hit the board edge or another
+                blocked piece.</li>
             </ul>
           </li>
           <li>
-            <strong>Lasers, Guarded Hexes &amp; Friendly Fire:</strong>
+            <strong>5-Step Chain-Reaction Resolution Order:</strong>
             <ul>
-              <li><strong>Guarded Hexes (No Stepping Into Enemy Lasers):</strong> Any empty hex currently pointed at by
-                an enemy unit's laser is an active kill zone. You <strong>cannot</strong> deploy a unit onto a hex that
-                is in the line of fire of an enemy laser, even if you try to aim back at that enemy unit. To destroy an
-                enemy unit, you must flank it from an unguarded adjacent hex or upgrade an existing unit outside its
-                firing line.</li>
-              <li><strong>Mandatory Friendly Fire:</strong> When placed or swapped, a unit immediately fires into the
-                adjacent hex(es) it points at, destroying <strong>any</strong> unit in those spaces, including your own
-                friendly units. You can use friendly fire intentionally to clear your own frontline and open new attack
-                lanes.</li>
+              <li><strong>Step 1 (Manipulator Effect):</strong> If a Rotator, Pacifier, or Repulsor is placed, all
+                rotations or pushes happen first. (A manipulator can safely step into an enemy laser if its effect turns
+                or pushes that laser away!)</li>
+              <li><strong>Step 2 (Active Player's Attacks):</strong> All of the active player's aggressive units that
+                were just placed or rotated/pushed fire their lasers.</li>
+              <li><strong>Step 3 (Enemy Supply Check):</strong> Any opponent units disconnected from their Home Base are
+                destroyed (`CUT!`).</li>
+              <li><strong>Step 4 (Opponent's Triggered Attacks):</strong> Any surviving opponent units that were rotated
+                or pushed in Step 1 now fire their lasers in their new direction (often destroying their own
+                teammates!).</li>
+              <li><strong>Step 5 (Active Player's Supply Check):</strong> Any of the active player's units disconnected
+                from their Home Base are destroyed (`CUT!`). A move is illegal if the newly placed unit itself does not
+                survive to the end of Step 5.</li>
             </ul>
           </li>
           <li>
-            <strong>Supply-Line Rule (Base Connection):</strong>
+            <strong>The 5-Unit Refresh Rule &amp; Victory Conditions:</strong>
             <ul>
-              <li>Every unit on the board must maintain an unbroken chain of adjacent friendly units connected back to
-                its Home Base (<code>RED HQ</code> at <code>C1</code>, <code>BLUE HQ</code> at <code>C7</code>).</li>
-              <li>If a laser strike destroys a link in that chain, all disconnected units (enemy or friendly, marked
-                with <code>CUT!</code>) are destroyed immediately on the same turn.</li>
-              <li>You cannot make a suicidal move that leaves your newly placed unit disconnected from your Home Base,
-                and you cannot shoot your own Home Base.</li>
-            </ul>
-          </li>
-          <li>
-            <strong>Enemy Base Restriction, Stalemates &amp; Winning the Game:</strong>
-            <ul>
-              <li><strong>Enemy HQ Approach Rule:</strong> You cannot place or swap a unit on a hex directly adjacent to
-                the opponent's Home Base unless that unit is aiming a laser directly at the enemy Home Base.</li>
-              <li><strong>Victory Conditions:</strong> You win immediately by firing a laser at the enemy Home Base,
-                eliminating all enemy units, or leaving your opponent with no legal moves.</li>
-              <li><strong>Passive Swap Limit (6 Swaps):</strong> If 6 consecutive turns (3 per player) consist only of
-                passive unit swaps without deploying onto an empty hex or destroying an enemy unit, the stalemate ends
-                automatically and the player controlling more units on the board wins (or a draw is declared if tied).
+              <li><strong>All-5 Refresh:</strong> Destroyed Advanced units enter your <em>Spent</em> pool. Once
+                <strong>all 5</strong> of your Advanced units are destroyed, all 5 refresh and become playable again.
               </li>
+              <li><strong>Victory:</strong> You win immediately if an enemy Home Base is hit by a laser (checked in
+                resolution order if both bases are targeted on the same turn) or if your opponent has no legal moves
+                left.</li>
             </ul>
           </li>
         </ol>
@@ -218,7 +208,7 @@
     </div>
   </div>
 
-  <script src="./index.js?v=11"></script>
+  <script src="./index.js?v=12"></script>
 </body>
 
 </html>
