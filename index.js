@@ -1,8 +1,9 @@
-// Arkeon: Symmetric 31-Hex Board with Strict Guarded-Hex Rule, Per-Unit Playability & Passive Swap Limit
+// Arkeon: Authentic 5 Advanced Units (Triple Striker, CW Rotator, CCW Rotator, Pacifier, Repulsor)
+// Game by Dominique Breton (https://www.facebook.com/ZeBlate), implemented by Alberto Piras (https://github.com/pirasalbe/Arkeon)
 
 const HEX_SIZE = 31;
 const SQRT3 = Math.sqrt(3);
-const MAX_PASSIVE_SWAPS = 6; // 3 consecutive passive swaps per player triggers tiebreaker
+const MAX_PASSIVE_SWAPS = 6;
 
 // 6 Cube Directions (0 = North, clockwise around the hex)
 const DIRECTIONS = [
@@ -20,48 +21,66 @@ const UNIT_TYPES = {
     name: "Basic Striker",
     short: "1 Laser",
     isAdvanced: false,
+    isAggressive: true,
+    rotatable: true,
     lasers: [0],
+    special: null,
   },
-  spear: {
-    id: "spear",
-    name: "Spear V",
-    short: "Narrow 2-Beam",
+  triple: {
+    id: "triple",
+    name: "Triple Striker",
+    short: "3-Way Laser",
     isAdvanced: true,
-    lasers: [0, 1],
-  },
-  fork: {
-    id: "fork",
-    name: "Wide Fork",
-    short: "Split 2-Beam",
-    isAdvanced: true,
-    lasers: [5, 1],
-  },
-  lancer: {
-    id: "lancer",
-    name: "Lancer Line",
-    short: "Dual Opposing",
-    isAdvanced: true,
-    lasers: [0, 3],
-  },
-  trident: {
-    id: "trident",
-    name: "Trident Fan",
-    short: "3-Way Front",
-    isAdvanced: true,
+    isAggressive: true,
+    rotatable: true,
     lasers: [5, 0, 1],
+    special: null,
   },
-  aegis: {
-    id: "aegis",
-    name: "Tri-Star",
-    short: "3-Way Radial",
+  rot_cw: {
+    id: "rot_cw",
+    name: "CW Rotator",
+    short: "Pivot Adj ⟳",
     isAdvanced: true,
-    lasers: [0, 2, 4],
+    isAggressive: false,
+    rotatable: false,
+    lasers: [],
+    special: "cw",
+  },
+  rot_ccw: {
+    id: "rot_ccw",
+    name: "CCW Rotator",
+    short: "Pivot Adj ⟲",
+    isAdvanced: true,
+    isAggressive: false,
+    rotatable: false,
+    lasers: [],
+    special: "ccw",
+  },
+  pacifier: {
+    id: "pacifier",
+    name: "Pacifier",
+    short: "Turn Away",
+    isAdvanced: true,
+    isAggressive: false,
+    rotatable: false,
+    lasers: [],
+    special: "pacify",
+  },
+  repulsor: {
+    id: "repulsor",
+    name: "Repulsor",
+    short: "Push 6 Axes",
+    isAdvanced: true,
+    isAggressive: false,
+    rotatable: false,
+    lasers: [],
+    special: "repulse",
   },
 };
 
-const ADVANCED_IDS = ["spear", "fork", "lancer", "trident", "aegis"];
-const RED_BASE_KEY = "0,3,-3";
-const BLUE_BASE_KEY = "0,-3,3";
+const ADVANCED_IDS = ["triple", "rot_cw", "rot_ccw", "pacifier", "repulsor"];
+const INITIAL_RED_BASE_KEY = "0,3,-3";
+const INITIAL_BLUE_BASE_KEY = "0,-3,3";
 
 function generateBoardCoords() {
   const coords = [];
@@ -166,13 +185,13 @@ function initGame() {
     state.cells.set(keyOf(x, y, z), { x, y, z, occupant: null });
   }
 
-  state.cells.get(RED_BASE_KEY).occupant = {
+  state.cells.get(INITIAL_RED_BASE_KEY).occupant = {
     faction: "red",
     type: "base",
     isBase: true,
     rot: 3,
   };
-  state.cells.get(BLUE_BASE_KEY).occupant = {
+  state.cells.get(INITIAL_BLUE_BASE_KEY).occupant = {
     faction: "blue",
     type: "base",
     isBase: true,
@@ -234,6 +253,19 @@ function cloneCells(cellsMap) {
   return copy;
 }
 
+function findBaseKey(cellsMap, faction) {
+  for (const [k, cell] of cellsMap.entries()) {
+    if (
+      cell.occupant &&
+      cell.occupant.isBase &&
+      cell.occupant.faction === faction
+    ) {
+      return k;
+    }
+  }
+  return null;
+}
+
 function getNeighbors(x, y, z, cellsMap = state.cells) {
   const list = [];
   for (let dir = 0; dir < 6; dir++) {
@@ -249,11 +281,10 @@ function getNeighbors(x, y, z, cellsMap = state.cells) {
 
 function getActiveLaserDirs(unitType, rot) {
   const spec = UNIT_TYPES[unitType];
-  if (!spec) return [];
+  if (!spec || !spec.isAggressive) return [];
   return spec.lasers.map((d) => (d + rot) % 6);
 }
 
-// Returns the key of any unit of `attackerFaction` on `cellsMap` currently aiming a laser at `targetKey`
 function findTargetingUnitKey(cellsMap, targetKey, attackerFaction) {
   for (const [k, cell] of cellsMap.entries()) {
     const occ = cell.occupant;
@@ -274,7 +305,8 @@ function findTargetingUnitKey(cellsMap, targetKey, attackerFaction) {
 }
 
 function findConnectedKeys(cellsMap, faction) {
-  const baseKey = faction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
+  const baseKey = findBaseKey(cellsMap, faction);
+  if (!baseKey) return new Set();
   const baseCell = cellsMap.get(baseKey);
   const visited = new Set();
   if (!baseCell || !baseCell.occupant || baseCell.occupant.faction !== faction)
@@ -305,6 +337,7 @@ function findConnectedKeys(cellsMap, faction) {
   return visited;
 }
 
+// Execute 5-Step Official Chain-Reaction Simulation
 function simulateMove(faction, unitType, rot, targetKey) {
   const targetCell = state.cells.get(targetKey);
   if (!targetCell) {
@@ -315,10 +348,13 @@ function simulateMove(faction, unitType, rot, targetKey) {
       laserTargetKeys: [],
       directHits: [],
       cutUnits: [],
+      manipulatedKeys: [],
     };
   }
 
-  const laserDirs = getActiveLaserDirs(unitType, rot);
+  const spec = UNIT_TYPES[unitType];
+  const effectiveRot = spec.rotatable ? rot : 0;
+  const laserDirs = getActiveLaserDirs(unitType, effectiveRot);
   const laserTargetKeys = laserDirs
     .map((d) =>
       keyOf(
@@ -336,6 +372,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     laserTargetKeys,
     directHits: [],
     cutUnits: [],
+    manipulatedKeys: [],
   });
 
   const existing = targetCell.occupant;
@@ -346,7 +383,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
     return fail("Hex is occupied by an enemy unit.");
   }
 
-  // RULE 1: No rotating an existing unit in place without changing its unit type.
   if (isSwap && existing.type === unitType) {
     return fail(
       "Cannot rotate an existing unit in place: pick a different unit card in your Arsenal to upgrade or downgrade it.",
@@ -360,22 +396,6 @@ function simulateMove(faction, unitType, rot, targetKey) {
     return fail("That Advanced unit is not currently available.");
   }
 
-  const enemyFaction = faction === "blue" ? "red" : "blue";
-
-  // RULE 2: STRICT GUARDED HEX RULE.
-  // If any enemy unit on the board is already aiming a laser at `targetKey`,
-  // you CANNOT deploy or swap onto `targetKey` at all.
-  const guardingEnemyKey = findTargetingUnitKey(
-    state.cells,
-    targetKey,
-    enemyFaction,
-  );
-  if (guardingEnemyKey) {
-    return fail(
-      `Blocked: ${labelOf(targetKey)} is guarded by enemy laser at ${labelOf(guardingEnemyKey)}. Flank it from an unguarded hex.`,
-    );
-  }
-
   const hasFriendlyNeighbor = getNeighbors(
     targetCell.x,
     targetCell.y,
@@ -385,72 +405,266 @@ function simulateMove(faction, unitType, rot, targetKey) {
     return fail("Must be adjacent to your connected supply chain.");
   }
 
-  const enemyBaseKey = enemyFaction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
-  const ownBaseKey = faction === "blue" ? BLUE_BASE_KEY : RED_BASE_KEY;
+  const enemyFaction = faction === "blue" ? "red" : "blue";
+  const initialEnemyBaseKey = findBaseKey(state.cells, enemyFaction);
 
   const isAdjacentToEnemyBase = getNeighbors(
     targetCell.x,
     targetCell.y,
     targetCell.z,
-  ).some((n) => n.key === enemyBaseKey);
-  const hitsEnemyBase = laserTargetKeys.includes(enemyBaseKey);
-
-  if (isAdjacentToEnemyBase && !hitsEnemyBase) {
+  ).some((n) => n.key === initialEnemyBaseKey);
+  if (
+    isAdjacentToEnemyBase &&
+    spec.special !== "repulse" &&
+    !laserTargetKeys.includes(initialEnemyBaseKey)
+  ) {
     return fail(
       "Units next to Enemy HQ must aim a laser directly at Enemy HQ.",
     );
   }
 
-  if (laserTargetKeys.includes(ownBaseKey)) {
+  // STRICT GUARDED HEX RULE (Applies to ALL units, both Aggressive and Non-Aggressive):
+  // "On ne peut pas poser un pion sur une case où il serait immédiatement détruit."
+  const guardingEnemyKey = findTargetingUnitKey(
+    state.cells,
+    targetKey,
+    enemyFaction,
+  );
+  if (guardingEnemyKey) {
     return fail(
-      "Cannot fire a laser at your own Home Base. Rotate to another angle.",
+      `Blocked: ${labelOf(targetKey)} is in the line of fire of enemy laser at ${labelOf(guardingEnemyKey)}.`,
     );
   }
 
-  // Step A: Place the unit and fire its lasers at adjacent targets
   const simCells = cloneCells(state.cells);
   simCells.get(targetKey).occupant = {
     faction,
     type: unitType,
     isBase: false,
-    rot,
+    rot: effectiveRot,
   };
 
-  const directHits = [];
-  for (const hitKey of laserTargetKeys) {
-    if (hitKey === enemyBaseKey) continue;
-    const occ = simCells.get(hitKey)?.occupant;
-    if (occ && !occ.isBase) {
-      directHits.push({ key: hitKey, occupant: { ...occ } });
-      simCells.get(hitKey).occupant = null;
+  const manipulatedKeys = [];
+  const activeAttackerKeys = new Set();
+  const enemyAttackerKeys = new Set();
+
+  if (spec.isAggressive) {
+    activeAttackerKeys.add(targetKey);
+  }
+
+  // =========================================================================
+  // STEP 1: Resolve Special Manipulator Action (CW, CCW, Pacifier, Repulsor)
+  // =========================================================================
+  if (
+    spec.special === "cw" ||
+    spec.special === "ccw" ||
+    spec.special === "pacify"
+  ) {
+    for (const { dir, key: nKey, cell: nCell } of getNeighbors(
+      targetCell.x,
+      targetCell.y,
+      targetCell.z,
+      simCells,
+    )) {
+      const occ = nCell.occupant;
+      if (!occ || occ.isBase || !UNIT_TYPES[occ.type]?.isAggressive) continue;
+
+      const oldRot = occ.rot;
+      if (spec.special === "cw") {
+        occ.rot = (occ.rot + 1) % 6;
+      } else if (spec.special === "ccw") {
+        occ.rot = (occ.rot + 5) % 6;
+      } else if (spec.special === "pacify") {
+        occ.rot = dir;
+      }
+
+      if (occ.rot !== oldRot) {
+        manipulatedKeys.push({
+          key: nKey,
+          tag: spec.special === "pacify" ? "PAC!" : "ROT!",
+        });
+        if (occ.faction === faction) {
+          activeAttackerKeys.add(nKey);
+        } else {
+          enemyAttackerKeys.add(nKey);
+        }
+      }
+    }
+  } else if (spec.special === "repulse") {
+    for (let dir = 0; dir < 6; dir++) {
+      const rayKeys = [];
+      let cx = targetCell.x + DIRECTIONS[dir].dx;
+      let cy = targetCell.y + DIRECTIONS[dir].dy;
+      let cz = targetCell.z + DIRECTIONS[dir].dz;
+
+      while (simCells.has(keyOf(cx, cy, cz))) {
+        rayKeys.push(keyOf(cx, cy, cz));
+        cx += DIRECTIONS[dir].dx;
+        cy += DIRECTIONS[dir].dy;
+        cz += DIRECTIONS[dir].dz;
+      }
+
+      for (let i = rayKeys.length - 2; i >= 0; i--) {
+        const srcKey = rayKeys[i];
+        const srcCell = simCells.get(srcKey);
+        if (!srcCell.occupant) continue;
+
+        let farthestEmptyIdx = i;
+        while (
+          farthestEmptyIdx + 1 < rayKeys.length &&
+          !simCells.get(rayKeys[farthestEmptyIdx + 1]).occupant
+        ) {
+          farthestEmptyIdx++;
+        }
+
+        if (farthestEmptyIdx !== i) {
+          const destKey = rayKeys[farthestEmptyIdx];
+          const destCell = simCells.get(destKey);
+          destCell.occupant = srcCell.occupant;
+          srcCell.occupant = null;
+
+          manipulatedKeys.push({ key: destKey, fromKey: srcKey, tag: "PUSH!" });
+
+          if (
+            !destCell.occupant.isBase &&
+            UNIT_TYPES[destCell.occupant.type]?.isAggressive
+          ) {
+            if (destCell.occupant.faction === faction) {
+              activeAttackerKeys.add(destKey);
+            } else {
+              enemyAttackerKeys.add(destKey);
+            }
+          }
+        }
+      }
     }
   }
 
-  // Step B: Check supply-line connectivity for both factions
-  const ownConnected = findConnectedKeys(simCells, faction);
-  if (!ownConnected.has(targetKey)) {
+  const directHits = [];
+  const cutUnits = [];
+  let hitsEnemyBase = false;
+  let hitsOwnBase = false;
+
+  function resolveFactionAttacks(attackerKeySet, firingFaction) {
+    const oppFaction = firingFaction === "blue" ? "red" : "blue";
+    const oppBaseKey = findBaseKey(simCells, oppFaction);
+    const myBaseKey = findBaseKey(simCells, firingFaction);
+
+    const victimsToDestroy = [];
+
+    for (const atkKey of attackerKeySet) {
+      const atkCell = simCells.get(atkKey);
+      const occ = atkCell?.occupant;
+      if (!occ || occ.isBase || occ.faction !== firingFaction) continue;
+
+      const dirs = getActiveLaserDirs(occ.type, occ.rot);
+      for (const d of dirs) {
+        const hitKey = keyOf(
+          atkCell.x + DIRECTIONS[d].dx,
+          atkCell.y + DIRECTIONS[d].dy,
+          atkCell.z + DIRECTIONS[d].dz,
+        );
+        if (!simCells.has(hitKey)) continue;
+
+        if (hitKey === myBaseKey) {
+          hitsOwnBase = true;
+        } else if (hitKey === oppBaseKey) {
+          if (firingFaction === faction) {
+            hitsEnemyBase = true;
+          } else {
+            hitsOwnBase = true;
+          }
+        } else {
+          const targetOcc = simCells.get(hitKey)?.occupant;
+          if (targetOcc && !targetOcc.isBase) {
+            victimsToDestroy.push(hitKey);
+          }
+        }
+      }
+    }
+
+    for (const vKey of victimsToDestroy) {
+      const occ = simCells.get(vKey)?.occupant;
+      if (occ && !occ.isBase) {
+        directHits.push({ key: vKey, occupant: { ...occ } });
+        simCells.get(vKey).occupant = null;
+      }
+    }
+  }
+
+  function removeDisconnectedFactionUnits(checkFaction) {
+    const connected = findConnectedKeys(simCells, checkFaction);
+    for (const [k, cell] of simCells.entries()) {
+      if (!cell.occupant || cell.occupant.isBase) continue;
+      if (cell.occupant.faction === checkFaction && !connected.has(k)) {
+        cutUnits.push({ key: k, occupant: { ...cell.occupant } });
+        cell.occupant = null;
+      }
+    }
+  }
+
+  // =========================================================================
+  // STEP 2: Resolve Active Player's Attacks
+  // =========================================================================
+  resolveFactionAttacks(activeAttackerKeys, faction);
+  if (hitsOwnBase) {
+    return fail(
+      "Illegal move: this action would fire a laser at your own Home Base.",
+    );
+  }
+
+  // =========================================================================
+  // STEP 3: Remove Isolated Enemy Units
+  // =========================================================================
+  removeDisconnectedFactionUnits(enemyFaction);
+
+  if (!hitsEnemyBase) {
+    // =======================================================================
+    // STEP 4: Resolve Opponent's Triggered Attacks (from surviving rotated/pushed units)
+    // =======================================================================
+    resolveFactionAttacks(enemyAttackerKeys, enemyFaction);
+    if (hitsOwnBase) {
+      return fail(
+        "Illegal move: rotated or pushed enemy unit would strike your own Home Base.",
+      );
+    }
+
+    // =======================================================================
+    // STEP 5: Remove All Isolated Units for Both Factions
+    // =======================================================================
+    removeDisconnectedFactionUnits(faction);
+    removeDisconnectedFactionUnits(enemyFaction);
+  } else {
+    removeDisconnectedFactionUnits(faction);
+  }
+
+  // Verify the newly placed unit at `targetKey` survived all 5 steps and is still connected
+  const finalPlacedOcc = simCells.get(targetKey)?.occupant;
+  if (!finalPlacedOcc || finalPlacedOcc.faction !== faction) {
     return {
       valid: false,
       reason:
-        "Illegal orientation: unit would sever its own supply line to Base. Rotate to another angle.",
+        "Illegal move: unit would be destroyed or disconnected from your Home Base.",
       laserDirs,
       laserTargetKeys,
       directHits,
-      cutUnits: [],
+      cutUnits,
+      manipulatedKeys,
     };
   }
 
-  const enemyConnected = findConnectedKeys(simCells, enemyFaction);
-  const cutUnits = [];
-
-  for (const [k, cell] of simCells.entries()) {
-    if (!cell.occupant || cell.occupant.isBase) continue;
-    const occFaction = cell.occupant.faction;
-    const connectedSet = occFaction === faction ? ownConnected : enemyConnected;
-    if (!connectedSet.has(k)) {
-      cutUnits.push({ key: k, occupant: { ...cell.occupant } });
-      cell.occupant = null;
-    }
+  // Ensure no surviving enemy unit is aiming at `targetKey` at the end of the turn
+  const finalGuardKey = findTargetingUnitKey(simCells, targetKey, enemyFaction);
+  if (finalGuardKey) {
+    return {
+      valid: false,
+      reason: `Illegal move: ${labelOf(targetKey)} would end the turn in the laser beam of enemy at ${labelOf(finalGuardKey)}.`,
+      laserDirs,
+      laserTargetKeys,
+      directHits,
+      cutUnits,
+      manipulatedKeys,
+    };
   }
 
   return {
@@ -461,6 +675,7 @@ function simulateMove(faction, unitType, rot, targetKey) {
     laserTargetKeys,
     directHits,
     cutUnits,
+    manipulatedKeys,
     hitsEnemyBase,
     simCells,
   };
@@ -471,6 +686,14 @@ function getHexAvailability(
   faction = state.turn,
   unitType = state.selectedUnitType,
 ) {
+  const spec = UNIT_TYPES[unitType];
+  if (!spec.rotatable) {
+    const sim = simulateMove(faction, unitType, 0, targetKey);
+    return sim.valid
+      ? { canPlace: true, defaultRot: 0, sim }
+      : { canPlace: false, reason: sim.reason };
+  }
+
   const preferredRot = state.selectedRotation;
   const currentSim = simulateMove(faction, unitType, preferredRot, targetKey);
   if (currentSim.valid) {
@@ -486,7 +709,6 @@ function getHexAvailability(
   return { canPlace: false, reason: currentSim.reason };
 }
 
-// IMPROVEMENT 1 & 3: Check if a specific unitType has at least one valid move anywhere on the board
 function canUnitTypeBeUsed(faction, unitType) {
   if (
     unitType !== "basic" &&
@@ -494,8 +716,9 @@ function canUnitTypeBeUsed(faction, unitType) {
   ) {
     return false;
   }
+  const maxRot = UNIT_TYPES[unitType].rotatable ? 6 : 1;
   for (const [k] of state.cells.entries()) {
-    for (let rot = 0; rot < 6; rot++) {
+    for (let rot = 0; rot < maxRot; rot++) {
       if (simulateMove(faction, unitType, rot, k).valid) {
         return true;
       }
@@ -504,7 +727,6 @@ function canUnitTypeBeUsed(faction, unitType) {
   return false;
 }
 
-// Find the first playable unit type for `faction` (preferring Basic Striker, then available Advanced units)
 function findFirstPlayableUnitType(faction) {
   const order = ["basic", ...ADVANCED_IDS];
   for (const uId of order) {
@@ -536,8 +758,16 @@ function recordMoveHistory(
   refreshEvents,
 ) {
   const coord = labelOf(targetKey);
-  const compassDirs = sim.laserDirs.map((d) => DIRECTIONS[d].Compass).join(",");
-  const targetCoords = sim.laserTargetKeys.map((k) => labelOf(k)).join(",");
+  const spec = UNIT_TYPES[unitType];
+  const compassDirs = spec.rotatable
+    ? `aim ${sim.laserDirs.map((d) => DIRECTIONS[d].Compass).join(",")} to ${sim.laserTargetKeys.map((k) => labelOf(k)).join(",")}`
+    : `effect: ${spec.short}`;
+
+  const fxCoords = sim.manipulatedKeys.map((m) =>
+    m.fromKey
+      ? `${labelOf(m.fromKey)}->${labelOf(m.key)}`
+      : `${labelOf(m.key)}(${m.tag.replace("!", "")})`,
+  );
   const hitCoords = sim.directHits.map(
     (h) => `${labelOf(h.key)}(${h.occupant.faction[0].toUpperCase()})`,
   );
@@ -558,13 +788,14 @@ function recordMoveHistory(
     faction,
     coord,
     actionVerb,
-    unitName: UNIT_TYPES[unitType].name,
+    unitName: spec.name,
     compassDirs,
-    targetCoords,
+    fxCoords,
     hitCoords,
     cutCoords,
     textSummary:
-      `#${state.turnNumber} [${faction.toUpperCase()}] ${actionVerb} ${UNIT_TYPES[unitType].name} at ${coord} (aim ${compassDirs} to ${targetCoords})` +
+      `#${state.turnNumber} [${faction.toUpperCase()}] ${actionVerb} ${spec.name} at ${coord} (${compassDirs})` +
+      (fxCoords.length ? ` | FX: ${fxCoords.join(", ")}` : "") +
       (hitCoords.length ? ` | HIT: ${hitCoords.join(", ")}` : "") +
       (cutCoords.length ? ` | CUT: ${cutCoords.join(", ")}` : "") +
       refreshNote,
@@ -614,9 +845,13 @@ function commitMove(targetKey, rot, explicitUnitType = null) {
     if (msg) refreshEvents.push(msg);
   }
 
-  // IMPROVEMENT 2: Track consecutive passive swaps (swaps that neither deploy nor destroy any unit)
   const totalCasualties = sim.directHits.length + sim.cutUnits.length;
-  if (sim.isSwap && totalCasualties === 0 && !sim.hitsEnemyBase) {
+  if (
+    sim.isSwap &&
+    totalCasualties === 0 &&
+    sim.manipulatedKeys.length === 0 &&
+    !sim.hitsEnemyBase
+  ) {
     state.passiveSwapStreak++;
   } else {
     state.passiveSwapStreak = 0;
@@ -656,7 +891,6 @@ function commitMove(targetKey, rot, explicitUnitType = null) {
     return;
   }
 
-  // Check if passive swap limit (6 consecutive non-destructive swaps) has been reached
   if (state.passiveSwapStreak >= MAX_PASSIVE_SWAPS) {
     const blueUnits = Array.from(state.cells.values()).filter(
       (c) => c.occupant && c.occupant.faction === "blue" && !c.occupant.isBase,
@@ -680,11 +914,9 @@ function commitMove(targetKey, rot, explicitUnitType = null) {
     return;
   }
 
-  // Switch turn to next player
   state.turn = enemyFaction;
   state.selectedRotation = state.turn === "blue" ? 0 : 3;
 
-  // IMPROVEMENT 1: Find first playable unit for the new turn (auto-selects Advanced unit if Basic Striker has no valid moves)
   const firstPlayable = findFirstPlayableUnitType(state.turn);
   if (!firstPlayable) {
     state.winner = faction;
@@ -702,7 +934,7 @@ function commitMove(targetKey, rot, explicitUnitType = null) {
     (state.mode === "pvp" || state.turn === "blue")
   ) {
     setLog(
-      `${lastLog}. Basic Striker has no valid moves for ${state.turn.toUpperCase()}: auto-selected ${UNIT_TYPES[firstPlayable].name} to upgrade a unit on the board.`,
+      `${lastLog}. Basic Striker has no valid moves for ${state.turn.toUpperCase()}: auto-selected ${UNIT_TYPES[firstPlayable].name}.`,
     );
   } else {
     setLog(lastLog);
@@ -729,8 +961,9 @@ function runAiTurn() {
   let bestScore = -9999;
 
   for (const uType of candidateTypes) {
+    const maxRot = UNIT_TYPES[uType].rotatable ? 6 : 1;
     for (const [k, cell] of state.cells.entries()) {
-      for (let rot = 0; rot < 6; rot++) {
+      for (let rot = 0; rot < maxRot; rot++) {
         const sim = simulateMove("red", uType, rot, k);
         if (!sim.valid) continue;
 
@@ -741,18 +974,26 @@ function runAiTurn() {
           score += h.occupant.faction === "blue" ? 45 : -40;
         for (const c of sim.cutUnits)
           score += c.occupant.faction === "blue" ? 65 : -55;
+        score += sim.manipulatedKeys.length * 6;
 
         score += (cell.z - cell.y) * 3;
 
-        if (sim.isSwap && sim.directHits.length === 0 && !sim.hitsEnemyBase) {
+        if (
+          sim.isSwap &&
+          sim.directHits.length === 0 &&
+          sim.cutUnits.length === 0 &&
+          !sim.hitsEnemyBase
+        ) {
           score -= 35;
         }
         if (
           uType !== "basic" &&
           sim.directHits.length === 0 &&
+          sim.cutUnits.length === 0 &&
+          sim.manipulatedKeys.length === 0 &&
           !sim.hitsEnemyBase
         ) {
-          score -= 12;
+          score -= 18;
         }
 
         score += Math.random() * 3;
@@ -777,7 +1018,7 @@ function runAiTurn() {
   state.selectedRotation = bestMove.rot;
   state.aiPreview = bestMove;
   setLog(
-    `Red AI is targeting ${labelOf(bestMove.key)} with ${UNIT_TYPES[bestMove.unitType].name}...`,
+    `Red AI is deploying ${UNIT_TYPES[bestMove.unitType].name} at ${labelOf(bestMove.key)}...`,
   );
   renderAll();
 
@@ -813,6 +1054,9 @@ function renderMoveHistory() {
     .slice()
     .reverse()
     .map((m) => {
+      const fxHtml = m.fxCoords?.length
+        ? ` <span class="fx-pill">FX:${m.fxCoords.join(",")}</span>`
+        : "";
       const hitHtml = m.hitCoords.length
         ? ` <span class="hit-pill">HIT:${m.hitCoords.join(",")}</span>`
         : "";
@@ -824,7 +1068,7 @@ function renderMoveHistory() {
           <span class="turn-num">#${m.turn} ${m.faction.toUpperCase()}</span>
           ${m.actionVerb} <strong>${m.unitName}</strong> @
           <span class="coord-pill">${m.coord}</span>
-          (aim ${m.compassDirs}&rarr;${m.targetCoords})${hitHtml}${cutHtml}
+          (${m.compassDirs})${fxHtml}${hitHtml}${cutHtml}
         </div>
       `;
     })
@@ -849,14 +1093,15 @@ function renderTurnBanner() {
 
   if (state.mode === "ai" && state.turn === "red") {
     title.textContent = "RED AI EXECUTING MOVE...";
-    hint.textContent = "Watch the board for Red's laser fire and supply cuts.";
+    hint.textContent =
+      "Watch the board for Red's chain reactions and laser fire.";
     return;
   }
 
   title.textContent = `${state.turn.toUpperCase()} COMMANDER'S TURN`;
   hint.textContent = !state.stagedHexKey
     ? "Step 1: Pick an enabled unit card. Step 2: Click or tap any green dashed hex on the board."
-    : `Locked on ${labelOf(state.stagedHexKey)}. Use Rotate ⟲ / ⟳ to aim, then click 'Confirm Move ✓'.`;
+    : `Locked on ${labelOf(state.stagedHexKey)}. Click 'Confirm Move ✓' (or tap hex again).`;
 }
 
 function renderScoreboard() {
@@ -898,28 +1143,43 @@ function renderScoreboard() {
 }
 
 function createMiniUnitSvg(unitId, faction) {
+  const spec = UNIT_TYPES[unitId];
   const color = faction === "red" ? "#f43f5e" : "#38bdf8";
   const rot = faction === "red" ? 3 : 0;
-  const dirs = getActiveLaserDirs(unitId, rot);
 
-  let rays = "";
-  for (const d of dirs) {
-    const angle = (Math.PI / 180) * DIRECTIONS[d].angleDeg;
-    const x2 = (27 + 20 * Math.cos(angle)).toFixed(1);
-    const y2 = (27 + 20 * Math.sin(angle)).toFixed(1);
-    rays += `<line x1="27" y1="27" x2="${x2}" y2="${y2}" stroke="#facc15" stroke-width="3" stroke-linecap="round" />`;
+  let innerGlyph = "";
+  if (spec.isAggressive) {
+    const dirs = getActiveLaserDirs(unitId, rot);
+    let rays = "";
+    for (const d of dirs) {
+      const angle = (Math.PI / 180) * DIRECTIONS[d].angleDeg;
+      const x2 = (27 + 20 * Math.cos(angle)).toFixed(1);
+      const y2 = (27 + 20 * Math.sin(angle)).toFixed(1);
+      rays += `<line x1="27" y1="27" x2="${x2}" y2="${y2}" stroke="#facc15" stroke-width="3" stroke-linecap="round" />`;
+    }
+    innerGlyph = `${rays}<circle cx="27" cy="27" r="7" fill="${color}" />`;
+  } else {
+    const symbolMap = {
+      cw: "⟳",
+      ccw: "⟲",
+      pacify: "☮",
+      repulse: "❖",
+    };
+    const sym = symbolMap[spec.special] || "★";
+    innerGlyph = `
+      <circle cx="27" cy="27" r="13" fill="#0f172a" stroke="#a78bfa" stroke-width="2" />
+      <text x="27" y="32" text-anchor="middle" fill="#facc15" font-size="15" font-weight="800">${sym}</text>
+    `;
   }
 
   return `
     <svg class="unit-mini-svg" viewBox="0 0 54 54">
       <polygon points="${hexPolygonPoints(27, 27, 22)}" fill="#0f172a" stroke="${color}" stroke-width="2" />
-      ${rays}
-      <circle cx="27" cy="27" r="7" fill="${color}" />
+      ${innerGlyph}
     </svg>
   `;
 }
 
-// IMPROVEMENT 3: Disable any unit card that is either Spent OR currently has zero legal moves on the board
 function renderUnitDock() {
   const dock = document.getElementById("unitDock");
   dock.innerHTML = "";
@@ -983,14 +1243,23 @@ function renderUnitDock() {
 function renderToolbar() {
   const unitBadge = document.getElementById("selectedUnitBadge");
   const hexBadge = document.getElementById("targetHexBadge");
+  const rotL = document.getElementById("rotateLeftBtn");
+  const rotR = document.getElementById("rotateRightBtn");
   const confirmBtn = document.getElementById("confirmMoveBtn");
   const cancelBtn = document.getElementById("cancelHexBtn");
 
-  const unitName = UNIT_TYPES[state.selectedUnitType]?.name || "Basic Striker";
-  unitBadge.textContent = `Selected: ${unitName}`;
+  const spec = UNIT_TYPES[state.selectedUnitType] || UNIT_TYPES.basic;
+  unitBadge.textContent = `Selected: ${spec.name}`;
+
+  const canRotate =
+    spec.rotatable &&
+    !state.isAnimatingAi &&
+    (state.mode === "pvp" || state.turn === "blue");
+  rotL.disabled = !canRotate;
+  rotR.disabled = !canRotate;
 
   if (state.isAnimatingAi || (state.mode === "ai" && state.turn === "red")) {
-    hexBadge.textContent = "Red AI is firing...";
+    hexBadge.textContent = "Red AI is executing move...";
     confirmBtn.disabled = true;
     cancelBtn.disabled = true;
     return;
@@ -1011,11 +1280,11 @@ function renderToolbar() {
   );
   const coord = labelOf(state.stagedHexKey);
   if (sim.valid) {
-    const compassDirs = sim.laserDirs
-      .map((d) => DIRECTIONS[d].Compass)
-      .join(",");
+    const detail = spec.rotatable
+      ? `Aim: ${sim.laserDirs.map((d) => DIRECTIONS[d].Compass).join(",")}`
+      : spec.short;
     const actionWord = sim.isSwap ? "Swap" : "Deploy";
-    hexBadge.textContent = `${actionWord} @ ${coord} (Aim: ${compassDirs}): Ready.`;
+    hexBadge.textContent = `${actionWord} @ ${coord} (${detail}): Ready.`;
     confirmBtn.disabled = false;
   } else {
     hexBadge.textContent = `${coord}: ${sim.reason}`;
@@ -1057,8 +1326,15 @@ function renderBoard() {
   const hitKeySet = new Set(
     activeSim ? activeSim.directHits.map((h) => h.key) : [],
   );
+  const manipMap = new Map(
+    activeSim ? activeSim.manipulatedKeys.map((m) => [m.key, m.tag]) : [],
+  );
 
-  for (const [key, cell] of state.cells.entries()) {
+  const displayCells =
+    activeSim && activeSim.valid ? activeSim.simCells : state.cells;
+
+  for (const [key, baseCell] of state.cells.entries()) {
+    const cell = displayCells.get(key) || baseCell;
     const { x, y } = cubeToPixel(cell.x, cell.y, cell.z);
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
@@ -1113,7 +1389,7 @@ function renderBoard() {
         state.hoverHexKey = null;
         state.selectedRotation = check.defaultRot;
         setLog(
-          `Locked on ${labelOf(key)}. Use 'Rotate ⟲ / ⟳' to aim, then click 'Confirm Move ✓'.`,
+          `Locked on ${labelOf(key)}. Click 'Confirm Move ✓' (or tap hex again).`,
         );
         renderAll();
       } else {
@@ -1160,17 +1436,22 @@ function renderBoard() {
       : state.selectedRotation;
     const previewFaction = state.aiPreview ? "red" : state.turn;
 
-    const occToDraw =
-      previewKey === key && activeSim
-        ? {
-            faction: previewFaction,
-            type: previewUnitType,
-            isBase: false,
-            rot: previewRot,
-            isGhost: true,
-            isInvalidGhost: !activeSim.valid,
-          }
-        : cell.occupant;
+    let occToDraw = cell.occupant;
+    if (previewKey === key && activeSim) {
+      occToDraw = {
+        faction: previewFaction,
+        type: previewUnitType,
+        isBase: false,
+        rot: previewRot,
+        isGhost: true,
+        isInvalidGhost: !activeSim.valid,
+      };
+    } else if (hitKeySet.has(key) || cutKeySet.has(key)) {
+      const hitEntry =
+        activeSim.directHits.find((h) => h.key === key) ||
+        activeSim.cutUnits.find((c) => c.key === key);
+      if (hitEntry) occToDraw = hitEntry.occupant;
+    }
 
     if (occToDraw) drawOccupant(g, x, y, occToDraw);
 
@@ -1178,12 +1459,14 @@ function renderBoard() {
       drawBadge(g, x, y - 15, "HIT!", "#ef4444");
     } else if (cutKeySet.has(key)) {
       drawBadge(g, x, y - 15, "CUT!", "#f97316");
+    } else if (manipMap.has(key)) {
+      drawBadge(g, x, y - 15, manipMap.get(key), "#8b5cf6");
     }
 
     svg.appendChild(g);
   }
 
-  for (const [, cell] of state.cells.entries()) {
+  for (const [, cell] of displayCells.entries()) {
     const occ = cell.occupant;
     if (!occ || occ.isBase) continue;
     const { x: sx, y: sy } = cubeToPixel(cell.x, cell.y, cell.z);
@@ -1199,7 +1482,7 @@ function renderBoard() {
         cell.y + DIRECTIONS[d].dy,
         cell.z + DIRECTIONS[d].dz,
       );
-      const tCell = state.cells.get(tKey);
+      const tCell = displayCells.get(tKey);
       if (!tCell) continue;
       const { x: tx, y: ty } = cubeToPixel(tCell.x, tCell.y, tCell.z);
 
@@ -1222,7 +1505,7 @@ function renderBoard() {
   if (activeSim && previewKey) {
     const srcCell = state.cells.get(previewKey);
     const { x: sx, y: sy } = cubeToPixel(srcCell.x, srcCell.y, srcCell.z);
-    const beamColor = activeSim.valid ? "#facc15" : "#ef4444";
+    const beamColor = activeSim.valid ? "#facc15" : "#fb923c";
     for (const targetKey of activeSim.laserTargetKeys) {
       const tCell = state.cells.get(targetKey);
       const { x: tx, y: ty } = cubeToPixel(tCell.x, tCell.y, tCell.z);
@@ -1237,20 +1520,21 @@ function renderBoard() {
       beam.setAttribute("y2", ty);
       beam.setAttribute("stroke", beamColor);
       beam.setAttribute("stroke-width", "4");
-      beam.setAttribute("stroke-dasharray", "6 4");
+      beam.setAttribute("stroke-dasharray", activeSim.valid ? "6 4" : "3 5");
+      beam.setAttribute("opacity", activeSim.valid ? "1" : "0.65");
       beam.setAttribute("pointer-events", "none");
       svg.appendChild(beam);
+    }
+    if (!activeSim.valid) {
+      drawBadge(svg, sx, sy - 18, "NO AIM", "#64748b");
     }
   }
 }
 
 function drawOccupant(group, cx, cy, occ) {
   const baseColor = occ.faction === "blue" ? "#38bdf8" : "#f43f5e";
-  const pieceColor = occ.isGhost
-    ? occ.isInvalidGhost
-      ? "#ef4444"
-      : "#facc15"
-    : baseColor;
+  const pieceColor = occ.isGhost ? "#facc15" : baseColor;
+  const ghostOpacity = occ.isGhost && occ.isInvalidGhost ? "0.42" : "1";
 
   if (occ.isBase) {
     const baseRing = document.createElementNS(
@@ -1281,40 +1565,83 @@ function drawOccupant(group, cx, cy, occ) {
     return;
   }
 
-  const dirs = getActiveLaserDirs(occ.type, occ.rot);
-  for (const d of dirs) {
-    const angle = (Math.PI / 180) * DIRECTIONS[d].angleDeg;
-    const x2 = cx + 21 * Math.cos(angle);
-    const y2 = cy + 21 * Math.sin(angle);
+  const spec = UNIT_TYPES[occ.type];
+  if (spec?.isAggressive) {
+    const dirs = getActiveLaserDirs(occ.type, occ.rot);
+    for (const d of dirs) {
+      const angle = (Math.PI / 180) * DIRECTIONS[d].angleDeg;
+      const x2 = cx + 21 * Math.cos(angle);
+      const y2 = cy + 21 * Math.sin(angle);
 
-    const ray = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    ray.setAttribute("x1", cx);
-    ray.setAttribute("y1", cy);
-    ray.setAttribute("x2", x2);
-    ray.setAttribute("y2", y2);
-    ray.setAttribute("stroke", pieceColor);
-    ray.setAttribute("stroke-width", "3.5");
-    ray.setAttribute("stroke-linecap", "round");
-    ray.setAttribute("pointer-events", "none");
-    group.appendChild(ray);
+      const ray = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "line",
+      );
+      ray.setAttribute("x1", cx);
+      ray.setAttribute("y1", cy);
+      ray.setAttribute("x2", x2);
+      ray.setAttribute("y2", y2);
+      ray.setAttribute("stroke", pieceColor);
+      ray.setAttribute("stroke-width", "3.5");
+      ray.setAttribute("stroke-linecap", "round");
+      ray.setAttribute("opacity", ghostOpacity);
+      ray.setAttribute("pointer-events", "none");
+      group.appendChild(ray);
+    }
+
+    const body = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "circle",
+    );
+    body.setAttribute("cx", cx);
+    body.setAttribute("cy", cy);
+    body.setAttribute("r", occ.type === "basic" ? 9.5 : 12.5);
+    body.setAttribute("fill", pieceColor);
+    body.setAttribute("stroke", occ.faction === "blue" ? "#0284c7" : "#e11d48");
+    body.setAttribute("stroke-width", "2.5");
+    body.setAttribute("opacity", ghostOpacity);
+    body.setAttribute("pointer-events", "none");
+    group.appendChild(body);
+  } else {
+    const body = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "circle",
+    );
+    body.setAttribute("cx", cx);
+    body.setAttribute("cy", cy);
+    body.setAttribute("r", 13);
+    body.setAttribute("fill", "#0f172a");
+    body.setAttribute("stroke", pieceColor);
+    body.setAttribute("stroke-width", "3");
+    body.setAttribute("opacity", ghostOpacity);
+    body.setAttribute("pointer-events", "none");
+    group.appendChild(body);
+
+    const symbolMap = {
+      cw: "⟳",
+      ccw: "⟲",
+      pacify: "☮",
+      repulse: "❖",
+    };
+    const sym = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    sym.setAttribute("x", cx);
+    sym.setAttribute("y", cy + 5);
+    sym.setAttribute("text-anchor", "middle");
+    sym.setAttribute("fill", "#facc15");
+    sym.setAttribute("font-size", "14");
+    sym.setAttribute("font-weight", "800");
+    sym.setAttribute("opacity", ghostOpacity);
+    sym.setAttribute("pointer-events", "none");
+    sym.textContent = symbolMap[spec?.special] || "★";
+    group.appendChild(sym);
   }
-
-  const body = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-  body.setAttribute("cx", cx);
-  body.setAttribute("cy", cy);
-  body.setAttribute("r", occ.type === "basic" ? 9.5 : 12.5);
-  body.setAttribute("fill", pieceColor);
-  body.setAttribute("stroke", "#0b101b");
-  body.setAttribute("stroke-width", "2.5");
-  body.setAttribute("pointer-events", "none");
-  group.appendChild(body);
 }
 
 function drawBadge(group, x, y, text, bgColor) {
   const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-  rect.setAttribute("x", x - 18);
+  rect.setAttribute("x", x - 19);
   rect.setAttribute("y", y - 8);
-  rect.setAttribute("width", 36);
+  rect.setAttribute("width", 38);
   rect.setAttribute("height", 15);
   rect.setAttribute("rx", 4);
   rect.setAttribute("fill", bgColor);
@@ -1326,7 +1653,7 @@ function drawBadge(group, x, y, text, bgColor) {
   label.setAttribute("y", y + 3);
   label.setAttribute("text-anchor", "middle");
   label.setAttribute("fill", "#ffffff");
-  label.setAttribute("font-size", "9");
+  label.setAttribute("font-size", "8.5");
   label.setAttribute("font-weight", "800");
   label.setAttribute("pointer-events", "none");
   label.textContent = text;
@@ -1336,6 +1663,7 @@ function drawBadge(group, x, y, text, bgColor) {
 function rotateSelected(delta) {
   if (state.isAnimatingAi || (state.mode === "ai" && state.turn === "red"))
     return;
+  if (!UNIT_TYPES[state.selectedUnitType]?.rotatable) return;
   state.selectedRotation = (state.selectedRotation + delta + 6) % 6;
   renderAll();
 }
